@@ -16,6 +16,8 @@ import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.Task;
 import com.google.firebase.auth.AuthResult;
 import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.database.DatabaseReference;
+import com.google.firebase.database.FirebaseDatabase;
 
 public class MainActivity extends AppCompatActivity {
     private FirebaseAuth mAuth;
@@ -27,12 +29,12 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-
+        DatabaseReference ref = FirebaseDatabase.getInstance().getReference();
         mAuth = FirebaseAuth.getInstance();  // Initialize FirebaseAuth
         button = findViewById(R.id.button);
         email = findViewById(R.id.email);
         password = findViewById(R.id.password);
-
+        ref.child("STUDENT").child("score").setValue("curentS+1");
         button.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
