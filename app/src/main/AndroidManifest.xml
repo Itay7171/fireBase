@@ -13,10 +13,13 @@
         android:theme="@style/Theme.Final"
         tools:targetApi="31">
         <activity
-            android:name=".Register"
+            android:name=".Instructions"
             android:exported="false" />
         <activity
-            android:name=".MainActivity"
+            android:name=".Game"
+            android:exported="false" />
+        <activity
+            android:name=".First"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -24,6 +27,15 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity
+            android:name=".StartGame"
+            android:exported="false" />
+        <activity
+            android:name=".Register"
+            android:exported="false" />
+        <activity
+            android:name=".MainActivity"
+            android:exported="false" />
     </application>
 
 </manifest>

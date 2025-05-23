@@ -1,6 +1,8 @@
                     package com.example.afinal;
 
+                    import android.app.Activity;
                     import android.content.Context;
+                    import android.content.Intent;
                     import android.text.TextUtils;
                     import android.widget.Toast;
 
@@ -26,7 +28,7 @@
                             Fire_base_handler.context = context;
                         }
 
-                        public void singIn(String email, String password) {
+                        public void signIn(String email, String password) {
 
                             // Check if email or password fields are empty
                             if (TextUtils.isEmpty(email) || TextUtils.isEmpty(password)) {
@@ -40,6 +42,8 @@
                                                 if (task.isSuccessful()) {
                                                     // If sign in is successful
                                                     Toast.makeText(context, "Sign in successful!", Toast.LENGTH_SHORT).show();
+                                                    Intent intent = new Intent(context,StartGame.class);
+                                                    ((Activity) context).startActivity(intent);
                                                 } else {
                                                     // If sign in fails, display a message
                                                     Toast.makeText(context, "Authentication failed: ", Toast.LENGTH_SHORT).show();
@@ -59,19 +63,27 @@
                         }
                         public void register(String email, String password)
                         {
-                            auth.createUserWithEmailAndPassword(email,password)
-                                    .addOnCompleteListener(new OnCompleteListener<AuthResult>() {
-                                @Override
-                                public void onComplete(@NonNull Task<AuthResult> task) {
-                                    if (task.isSuccessful()) {
-                                        // If sign up is successful
-                                        Toast.makeText(context, " successful!", Toast.LENGTH_SHORT).show();
-                                    } else {
-                                        // If sign up fails, display a message
-                                        Toast.makeText(context, "failed" , Toast.LENGTH_SHORT).show();
-                                    }
+                            if (TextUtils.isEmpty(email) || TextUtils.isEmpty(password)) {
+                                Toast.makeText(context, "Please enter both email and password.", Toast.LENGTH_SHORT).show();
+
+                            }else {
+                                    auth.createUserWithEmailAndPassword(email, password)
+                                            .addOnCompleteListener(new OnCompleteListener<AuthResult>() {
+                                                @Override
+                                                public void onComplete(@NonNull Task<AuthResult> task) {
+                                                    if (task.isSuccessful()) {
+                                                        // If sign up is successful
+                                                        Toast.makeText(context, " successful!", Toast.LENGTH_SHORT).show();
+
+                                                    } else {
+                                                        // If sign up fails, display a message
+                                                        Toast.makeText(context, "failed", Toast.LENGTH_SHORT).show();
+                                                    }
+                                                }
+                                            });
                                 }
-                            });
+
+
                         }
                     }
 

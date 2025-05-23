@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- מצב לחוץ -->
+    <item android:state_pressed="true">
+        <shape android:shape="rectangle">
+            <stroke android:width="12px" android:color="#FF0000" /> <!-- מסגרת אדומה -->
+            <solid android:color="#FFFFFF" />
+        </shape>
+    </item>
+
+    <!-- מצב רגיל -->
+    <item>
+        <shape android:shape="rectangle">
+            <stroke android:width="8dp" android:color="#FFFFFF" /> <!-- ללא מסגרת -->
+            <solid android:color="#FFFFFF" />
+        </shape>
+    </item>
+</shape>

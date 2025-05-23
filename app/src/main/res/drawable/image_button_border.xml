@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+
+    <!-- צבע הרקע הפנימי -->
+    <solid android:color="#FFFFFF" /> <!-- צבע לבן -->
+
+    <!-- הגדרת מסגרת -->
+    <stroke
+        android:width="12px"
+    android:color="#FF0000" /> <!-- צבע המסגרת (אדום) -->
+
+</shape>
