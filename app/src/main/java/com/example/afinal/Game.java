@@ -1,8 +1,11 @@
 package com.example.afinal;
 
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.graphics.drawable.GradientDrawable;
+import android.net.ConnectivityManager;
 import android.os.Bundle;
+import android.os.CountDownTimer;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
@@ -38,6 +41,8 @@ public class Game extends AppCompatActivity {
     private ImageButton selectedCardButton = null;
     private ImageButton thirdClickedButton = null; // הוספת המשתנה החסר
     private DatabaseReference gameRef;
+    Wifi_Reciver WifiModeChangeReciver = new Wifi_Reciver();
+
 
     private Button throwButton;
     LinkedList<Card> player1RoundCards = new LinkedList<>();
@@ -86,6 +91,11 @@ public class Game extends AppCompatActivity {
     Card[] OnTheBord = new Card[8];
     Random random = new Random();
     int[] onTheHand = new int[3];
+
+    private TextView timerText;
+    private CountDownTimer countDownTimer;
+    private int currentPlayer = 1; // נניח שחקן 1 מתחיל
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -97,6 +107,10 @@ public class Game extends AppCompatActivity {
             return insets;
 
         });
+
+        timerText = findViewById(R.id.timerText);
+
+        startTurnTimer();
 
         DatabaseReference gameRef = FirebaseDatabase.getInstance().getReference("games").child("game123");
         gameRef.child("turn").setValue("player1");  // שחקן 1 מתחיל
@@ -371,7 +385,47 @@ public class Game extends AppCompatActivity {
         // מאזין לכפתור "לזרוק"
         setthrowButtonClickListener();
     }
-    private void setCardClickListener1(ImageButton button, boolean isHandCard) {
+    protected void onStart()
+    {
+        super.onStart();
+        IntentFilter filter = new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION);
+        registerReceiver(WifiModeChangeReciver,filter);
+    }
+    protected void onStop()
+    {
+        super.onStop();
+        unregisterReceiver(WifiModeChangeReciver);
+    }
+
+    private void startTurnTimer() {
+        countDownTimer = new CountDownTimer(60000, 1000) { // 60 שניות
+
+            @Override
+            public void onTick(long millisUntilFinished) {
+                long secondsLeft = millisUntilFinished / 1000;
+                timerText.setText(String.valueOf(secondsLeft));
+            }
+
+            @Override
+            public void onFinish() {
+                // כשהטיימר נגמר — מעבירים תור
+                Toast.makeText(Game.this, "נגמר הזמן! תור עובר לשחקן הבא", Toast.LENGTH_SHORT).show();
+                switchTurn();
+            }
+        }.start();
+    }
+
+    private void switchTurn() {
+        // החלפת שחקן (בדוגמה בין 1 ל־2)
+        currentPlayer = (currentPlayer == 1) ? 2 : 1;
+        Toast.makeText(this, "תור שחקן " + currentPlayer, Toast.LENGTH_SHORT).show();
+
+        // התחלת טיימר חדש
+        startTurnTimer();
+    }
+
+    private void setCardClickListener1(ImageButton button, boolean isHandCard)
+    {
         button.setOnClickListener(v -> {
             if (isHandCard) {
                 // בחירת קלף מהיד
@@ -398,15 +452,17 @@ public class Game extends AppCompatActivity {
         });
     }
 
-    public static void startTurnListener()
+    public void startTurnListener()
     {
         gameRef.child("turn").addValueEventListener(new ValueEventListener() {
             @Override
             public void onDataChange(@NonNull DataSnapshot snapshot) {
                 String currentTurn = snapshot.getValue(String.class);
                 if (currentTurn == null) return;
+                SharedPreferences prefs = getSharedPreferences("MyGamePrefs", MODE_PRIVATE);
+                String playerId = prefs.getString("playerId", null);  // ערך ברירת מחדל אם לא קיים
 
-                if (currentTurn.equals(myPlayerId)) {
+                if (currentTurn.equals(playerId)) {
                     enablePlayerControls();  // תורך לשחק
                 } else {
                     disablePlayerControls(); // תחכה
@@ -424,32 +480,44 @@ public class Game extends AppCompatActivity {
         String playerId = prefs.getString("playerId", null);  // ערך ברירת מחדל אם לא קיים
         String nextPlayer = playerId.equals("player1") ? "player2" : "player1";
         gameRef.child("turn").setValue(nextPlayer);
+        startTurnListener();///לבדוק אם זה לא יעבוד שם לשים את זה אחרי הקריאה לפעולה
     }
 
-    private static void enablePlayerControls() {
-        // דוגמה להפעלת כפתורי קלפים ביד
-        for (int i = 0; i < OnTheBord; i++) {
-            button.setEnabled(true);
-        }
+    private void enablePlayerControls() {
+            throwButton.setEnabled(true);
+            imageButton1.setEnabled(true);
+            imageButton2.setEnabled(true);
+            imageButton3.setEnabled(true);
+            imageButton4.setEnabled(true);
+            imageButton5.setEnabled(true);
+            imageButton6.setEnabled(true);
+            imageButton7.setEnabled(true);
+            imageButton8.setEnabled(true);
+            imageButton9.setEnabled(true);
+            imageButton10.setEnabled(true);
+            imageButton11.setEnabled(true);
 
-        // דוגמה להפעלת כפתורי קלפים על הלוח
-        for (Button button : OnTheBord) {
-            button.setEnabled(true);
-        }
+
 
         Log.d("Game", "Player controls enabled");
+
+        endTurn();
     }
 
-    private static void disablePlayerControls() {
+    private void disablePlayerControls() {
         // דוגמה לנטרול כפתורי קלפים ביד
-        for (int i = 0; i < boardCardButtons.size(); i++) {
-            button.setEnabled(false);
-        }
-
-        // דוגמה לנטרול כפתורי קלפים על הלוח
-        for (Button button : boardCardButtons) {
-            button.setEnabled(false);
-        }
+        throwButton.setEnabled(false);
+        imageButton1.setEnabled(false);
+        imageButton2.setEnabled(false);
+        imageButton3.setEnabled(false);
+        imageButton4.setEnabled(false);
+        imageButton5.setEnabled(false);
+        imageButton6.setEnabled(false);
+        imageButton7.setEnabled(false);
+        imageButton8.setEnabled(false);
+        imageButton9.setEnabled(false);
+        imageButton10.setEnabled(false);
+        imageButton11.setEnabled(false);
 
         Log.d("Game", "Player controls disabled");
     }

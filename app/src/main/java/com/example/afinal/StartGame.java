@@ -1,15 +1,19 @@
 package com.example.afinal;
 
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.net.ConnectivityManager;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.activity.EdgeToEdge;
 import androidx.annotation.NonNull;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
@@ -33,7 +37,8 @@ public class StartGame extends AppCompatActivity {
     private Button joinRoomButton;
     private String myPlayerId;  // הוספת משתנה לשמירת תפקיד השחקן (player1 או player2)
     private String roomId;      // משתנה לשמירת מזהה החדר
-
+    private DatabaseReference roomRef;
+    Wifi_Reciver WifiModeChangeReciver = new Wifi_Reciver();
 
 
     @Override
@@ -47,11 +52,14 @@ public class StartGame extends AppCompatActivity {
             return insets;
         });
 
-        roomId = FirebaseDatabase.getInstance().getReference("games").push().getKey();  // מזהה ייחודי
-        DatabaseReference roomRef = FirebaseDatabase.getInstance().getReference("games").child(roomId);
+
         idTextView = findViewById(R.id.textView3);
         c_button = findViewById(R.id.button11);
         j_button = findViewById(R.id.button10);
+
+        roomId = FirebaseDatabase.getInstance().getReference("games").push().getKey();  // מזהה ייחודי
+        roomRef = FirebaseDatabase.getInstance().getReference("games").child(roomId);
+
 
         Map<String, Object> roomData = new HashMap<>();
         roomData.put("player1", FirebaseAuth.getInstance().getCurrentUser().getUid()); // או שם, תלוי במבנה שלך
@@ -65,18 +73,37 @@ public class StartGame extends AppCompatActivity {
         });
         //לשים שורה  של הכנסת טקסט בלמעלה של המסך שהוא עם הקוד של החדר
         // להתחיל עם שורה ריקה ואז אחרי שזה לוחץ על הליסינר זה משנה את הטקסט לרום id
+        // הצטרפות לחדר (Player 2)
 
-        final String roomId2 = roomCodeInput.getText().toString();
-        roomRef = FirebaseDatabase.getInstance().getReference("games").child(roomId);
+        j_button.setOnClickListener(v -> {
+            // פתיחת דיאלוג להזנת קוד
+            final EditText input = new EditText(this);
+            input.setHint("הכנס קוד חדר");
 
-        roomRef.child("player2").setValue(FirebaseAuth.getInstance().getCurrentUser().getUid())
-                .addOnSuccessListener(aVoid -> {
-                    // נכנס לחדר בהצלחה
-                    startGame(roomId2, "player2");
-                })
-                .addOnFailureListener(e -> {
-                    Toast.makeText(getApplicationContext(), "קוד חדר לא תקין", Toast.LENGTH_SHORT).show();
-                });
+            AlertDialog.Builder builder = new AlertDialog.Builder(this);
+            builder.setTitle("הצטרפות לחדר");
+            builder.setView(input);
+            builder.setPositiveButton("הצטרף", (dialog, which) -> {
+                String roomId2 = input.getText().toString().trim();
+                if (roomId2.isEmpty()) {
+                    Toast.makeText(this, "אנא הכנס קוד תקין", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+
+                roomRef = FirebaseDatabase.getInstance().getReference("games").child(roomId2);
+                roomRef.child("player2").setValue(FirebaseAuth.getInstance().getCurrentUser().getUid())
+                        .addOnSuccessListener(aVoid -> {
+                            Toast.makeText(this, "הצטרפת בהצלחה!", Toast.LENGTH_SHORT).show();
+                            startGame(roomId2, "player2");  // פונקציית התחלת המשחק
+                        })
+                        .addOnFailureListener(e -> {
+                            Toast.makeText(this, "קוד חדר לא תקין", Toast.LENGTH_SHORT).show();
+                        });
+
+            });
+            builder.setNegativeButton("ביטול", (dialog, which) -> dialog.cancel());
+            builder.show();
+        });
 
     }
 
@@ -88,7 +115,9 @@ public class StartGame extends AppCompatActivity {
         editor.putString("playerId", "abc123");  // או editor.putInt, putBoolean וכו'
         editor.apply();  // או commit() אם אתה רוצה לשמור מיד
         // התחלת הקשבה לתור
-        Game.startTurnListener();
+        Game game = new Game();
+        game.startTurnListener();
+
     }
 
 
@@ -104,5 +133,24 @@ public class StartGame extends AppCompatActivity {
         Toast.makeText(this,"Click",Toast.LENGTH_SHORT).show();
         Intent intent = new Intent(this,Instructions.class);
         startActivity(intent);
+    }
+
+    public void moveToSettings (View view)
+    {
+        Toast.makeText(this,"Click",Toast.LENGTH_SHORT).show();
+        Intent intent = new Intent(this,Settings_game.class);
+        startActivity(intent);
+    }
+
+    protected void onStart()
+    {
+        super.onStart();
+        IntentFilter filter = new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION);
+        registerReceiver(WifiModeChangeReciver,filter);
+    }
+    protected void onStop()
+    {
+        super.onStop();
+        unregisterReceiver(WifiModeChangeReciver);
     }
 }

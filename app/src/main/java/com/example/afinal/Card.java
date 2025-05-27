@@ -8,6 +8,7 @@ public class Card
     private int imageResource; // Resource ID for the card's image
     private boolean isVisible; // Whether the card is visible on the board
     private int index;
+    private boolean turn_a;
 
     // Constructor
     public Card(int number, String shape, String id, int imageResource) {
@@ -17,6 +18,7 @@ public class Card
         this.imageResource = imageResource;
         this.isVisible = true; // ברירת מחדל: הקלף מוצג
         this.index =-1;
+        this.turn_a = true;
     }
 
     // Getters and Setters
@@ -67,6 +69,14 @@ public class Card
 
     public void SetIndex(int index) {
         this.index =index;
+    }
+
+    public boolean turn_a() {
+        return turn_a;
+    }
+
+    public void SetTurn_a(boolean turn_a) {
+        this.turn_a = turn_a;
     }
 
 
