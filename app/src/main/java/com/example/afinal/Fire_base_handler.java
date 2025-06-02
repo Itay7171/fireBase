@@ -16,6 +16,11 @@ import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
+import com.google.firebase.database.ValueEventListener;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 public class Fire_base_handler {
     private static FirebaseDatabase database = FirebaseDatabase.getInstance();
@@ -108,4 +113,6 @@ public class Fire_base_handler {
             Toast.makeText(context, "No user is logged in.", Toast.LENGTH_SHORT).show();
         }
     }
+
+
 }

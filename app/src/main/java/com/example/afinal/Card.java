@@ -10,6 +10,9 @@ public class Card
     private int index;
     private boolean turn_a;
 
+    public Card() {}
+
+
     // Constructor
     public Card(int number, String shape, String id, int imageResource) {
         this.number = number;

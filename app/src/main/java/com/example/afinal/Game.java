@@ -26,7 +26,9 @@ import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.ValueEventListener;
 
+import java.util.ArrayList;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Objects;
 import java.util.Random;
 
@@ -42,7 +44,6 @@ public class Game extends AppCompatActivity {
     private ImageButton thirdClickedButton = null; // הוספת המשתנה החסר
     private DatabaseReference gameRef;
     Wifi_Reciver WifiModeChangeReciver = new Wifi_Reciver();
-
 
     private Button throwButton;
     LinkedList<Card> player1RoundCards = new LinkedList<>();
@@ -96,6 +97,7 @@ public class Game extends AppCompatActivity {
     private CountDownTimer countDownTimer;
     private int currentPlayer = 1; // נניח שחקן 1 מתחיל
 
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -110,182 +112,43 @@ public class Game extends AppCompatActivity {
 
         timerText = findViewById(R.id.timerText);
 
-        startTurnTimer();
+        // מקבלים את roomId שנשלח מ-StartGame
+        String roomId = getIntent().getStringExtra("roomId");
+        if (roomId == null) {
+            Toast.makeText(this, "Room ID לא התקבל", Toast.LENGTH_SHORT).show();
+            finish();
+            return;
+        }
 
-        DatabaseReference gameRef = FirebaseDatabase.getInstance().getReference("games").child("game123");
-        gameRef.child("turn").setValue("player1");  // שחקן 1 מתחיל
+        gameRef = FirebaseDatabase.getInstance().getReference("games").child(roomId);
 
+        // מקבלים את התפקיד של השחקן (player1 או player2)
+        String playerId = getIntent().getStringExtra("playerId");
 
-//        gameRef.child("turn").addValueEventListener(new ValueEventListener() {
-//            @Override
-//            public void onDataChange(@NonNull DataSnapshot snapshot) {
-//                String currentTurn = snapshot.getValue(String.class);
-//                if (currentTurn == null) return;
-//
-//                if (currentTurn.equals(myPlayerId)) {
-//                    startGame();  // תורך לשחק
-//                } else {
-//                    disablePlayerControls(); // תחכה
-//                }
-//            }
-//
-//            @Override
-//            public void onCancelled(@NonNull DatabaseError error) { }
-//        });
+        if (playerId == null) {
+            Toast.makeText(this, "שגיאה בקבלת תפקיד", Toast.LENGTH_SHORT).show();
+            finish();
+            return;
+        }
 
+        // שמירת playerId בזיכרון
+        SharedPreferences prefs = getSharedPreferences("MyGamePrefs", MODE_PRIVATE);
+        prefs.edit().putString("playerId", playerId).apply();
 
+        // אם זה player1 – הוא מתחיל
+        if (playerId.equals("player1")) {
+            gameRef.child("turn").setValue("player1");
+        }
 
-
-        //Card clickedCard = (Card) imageButton4.getTag();
-//        imageButton1.setOnClickListener(new View.OnClickListener()
-//        {
-//
-//            @Override
-//            public void onClick(View v) {
-//
-//                for(int i=0;i< OnTheBord.length;i++)
-//                {
-//                    if(OnTheBord[i].getNumber()==OnTheBord[onTheHand[0]].getNumber())
-//                    {
-//
-//                        Animation moveAnimation = AnimationUtils.loadAnimation(getApplicationContext(), R.anim.move_card);
-//                        imageButton1.startAnimation(moveAnimation);
-//
-//                        // כאשר האנימציה מסתיימת, הסתר את הכרטיס
-//                        moveAnimation.setAnimationListener(new Animation.AnimationListener() {
-//                            @Override
-//                            public void onAnimationStart(Animation animation) {}
-//
-//                            @Override
-//                            public void onAnimationEnd(Animation animation) {
-//                                imageButton1.setVisibility(View.INVISIBLE);
-//
-//                            }
-//
-//                            @Override
-//                            public void onAnimationRepeat(Animation animation) {}
-//                        });
-//
-//                    }
-//
-//                }
-//                for(int i=0;i< OnTheBord.length;i++)
-//                {
-//                    for (int j = i + 1; j < OnTheBord.length; j++)
-//                    {
-//                        if (OnTheBord[i].getNumber() + OnTheBord[j].getNumber() ==arr[onTheHand[0]].getNumber() )
-//                        {
-//                            Animation moveAnimation = AnimationUtils.loadAnimation(getApplicationContext(), R.anim.move_card);
-//                            imageButton1.startAnimation(moveAnimation);
-//
-//                            // כאשר האנימציה מסתיימת, הסתר את הכרטיס
-//                            moveAnimation.setAnimationListener(new Animation.AnimationListener() {
-//                                @Override
-//                                public void onAnimationStart(Animation animation) {}
-//
-//                                @Override
-//                                public void onAnimationEnd(Animation animation) {
-//                                    imageButton1.setVisibility(View.INVISIBLE);
-//                                }
-//
-//                                @Override
-//                                public void onAnimationRepeat(Animation animation) {}
-//                            });
-//                        }
-//                    }
-//                }
-//
-//
-//            }
-//
-//        });
-//
-//
-//
-//
-//
-//        imageButton2.setOnClickListener(new View.OnClickListener() {
-//            @Override
-//            public void onClick(View v) {
-//                for(int i=0;i< OnTheBord.length;i++)
-//                {
-//                    if(OnTheBord[i].getNumber()==arr[onTheHand[0]].getNumber())
-//                    {
-//                        imageButton2.setVisibility(View.INVISIBLE);
-//                    }
-//
-//                }
-//                for(int i=0;i< OnTheBord.length;i++)
-//                {
-//                    for (int j = i + 1; j < OnTheBord.length; j++)
-//                    {
-//                        if (OnTheBord[i].getNumber() + OnTheBord[j].getNumber() ==arr[onTheHand[0]].getNumber() )
-//                        {
-//                            imageButton2.setVisibility(View.INVISIBLE);
-//                        }
-//                    }
-//                }
-//
-//
-//            }
-//        });
-//
-//        imageButton3.setOnClickListener(new View.OnClickListener() {
-//            @Override
-//            public void onClick(View v) {
-//                for(int i=0;i< OnTheBord.length;i++)
-//                {
-//                    if(OnTheBord[i].getNumber()==arr[onTheHand[0]].getNumber())
-//                    {
-//                        imageButton3.setVisibility(View.INVISIBLE);
-//                    }
-//
-//                }
-//                for(int i=0;i< OnTheBord.length;i++)
-//                {
-//                    for (int j = i + 1; j < OnTheBord.length; j++)
-//                    {
-//                        if (OnTheBord[i].getNumber() + OnTheBord[j].getNumber() ==arr[onTheHand[0]].getNumber() )
-//                        {
-//                            imageButton3.setVisibility(View.INVISIBLE);
-//                        }
-//                    }
-//                }
-//
-//
-//            }
-//        });
-
-
-
-//        setCardClickListener(imageButton1);
-//        setCardClickListener(imageButton2);
-//        setCardClickListener(imageButton3);
-//        setCardClickListener(imageButton4);
-//        setCardClickListener(imageButton5);
-//        setCardClickListener(imageButton6);
-//        setCardClickListener(imageButton7);
-//        setCardClickListener(imageButton8);
-//        setCardClickListener(imageButton9);
-//        setCardClickListener(imageButton10);
-//        setCardClickListener(imageButton11);
-//
-//
-//
-//// הוספת מאזין לכל קלף ביד
-//        setCardClickListenerForHand(imageButton1);
-//        setCardClickListenerForHand(imageButton2);
-//        setCardClickListenerForHand(imageButton3);
-
-
-
-
-
-
+        // התחלת המשחק והאזנה לתור
+        startGame();
+        startTurnListener();
 
     }
 
     public void startGame(){
+        DatabaseReference boardRef = FirebaseDatabase.getInstance()
+                .getReference("rooms").child("ROOM_CODE").child("board");
 
 
 
@@ -338,6 +201,13 @@ public class Game extends AppCompatActivity {
         OnTheBord[3] = arr[indexOfNextCard];
         arr[indexOfNextCard].SetIndex(3);
         indexOfNextCard++;
+
+        // שמירה של הלוח ל-Firebase (4 קלפים בלבד)
+        for (int i = 0; i < 4; i++) {
+            Card card = OnTheBord[i];
+            boardRef.child(String.valueOf(i)).setValue(card);
+        }
+
 
         imageButton8.setVisibility(View.INVISIBLE);
 
@@ -421,7 +291,6 @@ public class Game extends AppCompatActivity {
         Toast.makeText(this, "תור שחקן " + currentPlayer, Toast.LENGTH_SHORT).show();
 
         // התחלת טיימר חדש
-        startTurnTimer();
     }
 
     private void setCardClickListener1(ImageButton button, boolean isHandCard)
@@ -454,6 +323,7 @@ public class Game extends AppCompatActivity {
 
     public void startTurnListener()
     {
+
         gameRef.child("turn").addValueEventListener(new ValueEventListener() {
             @Override
             public void onDataChange(@NonNull DataSnapshot snapshot) {
@@ -480,7 +350,7 @@ public class Game extends AppCompatActivity {
         String playerId = prefs.getString("playerId", null);  // ערך ברירת מחדל אם לא קיים
         String nextPlayer = playerId.equals("player1") ? "player2" : "player1";
         gameRef.child("turn").setValue(nextPlayer);
-        startTurnListener();///לבדוק אם זה לא יעבוד שם לשים את זה אחרי הקריאה לפעולה
+        ///startTurnListener();///לבדוק אם זה לא יעבוד שם לשים את זה אחרי הקריאה לפעולה
     }
 
     private void enablePlayerControls() {
@@ -497,11 +367,11 @@ public class Game extends AppCompatActivity {
             imageButton10.setEnabled(true);
             imageButton11.setEnabled(true);
 
+        startTurnTimer();
 
 
         Log.d("Game", "Player controls enabled");
 
-        endTurn();
     }
 
     private void disablePlayerControls() {
@@ -538,19 +408,7 @@ public class Game extends AppCompatActivity {
 
 
 
-//    private void setCardClickListener(ImageButton button) {
-//        button.setOnClickListener(v -> {
-//            // שמור את הכפתור שנלחץ
-//            if (firstClickedButton == null) {
-//                firstClickedButton = (ImageButton) v;
-//            } else if (secondClickedButton == null) {
-//                secondClickedButton = (ImageButton) v;
-//
-//                // כאשר שני קלפים נבחרו, בדוק אם הם זהים
-//                checkMatch();
-//            }
-//        });
-//    }
+
 
 
 
@@ -653,47 +511,7 @@ public class Game extends AppCompatActivity {
 
 
 
-//    private void checkTripleMatch() {
-//        if (selectedCardButton != null && handClickedButton != null && secondClickedButton != null) {
-//            Card handCard = (Card) selectedCardButton.getTag();
-//            Card boardCard1 = (Card) handClickedButton.getTag();
-//            Card boardCard2 = (Card) secondClickedButton.getTag();
-//
-//            if (handCard != null && boardCard1 != null && boardCard2 != null) {
-//                if (handCard.getNumber() == (boardCard1.getNumber() + boardCard2.getNumber())) {
-//                    // התאמה בין שלושה קלפים – מחיקה
-//                    selectedCardButton.setVisibility(View.INVISIBLE);
-//                    handClickedButton.setVisibility(View.INVISIBLE);
-//                    secondClickedButton.setVisibility(View.INVISIBLE);
-//
-//                    Log.d("Game", "Triple match found and removed!");
-//                    }
-//
-//                else{
-//                        Toast.makeText(this, "The cards don't match", Toast.LENGTH_SHORT).show();
-//                        // קלפים לא תואמים – ניתן להוסיף אפקט או אנימציה
-//                        // איפוס המשתנים
-//
-//                }
-//
-//              selectedCardButton = null;
-//              handClickedButton = null;
-//              secondClickedButton = null;
-//            }
-//        }
-//    }
 
-
-
-
-
-
-//    private void setCardClickListenerForHand(ImageButton button) {
-//        button.setOnClickListener(v -> {
-//            selectedCardButton = (ImageButton) v;
-//            Log.d("Game", "Selected card from hand: " + selectedCardButton.getTag());
-//        });
-//    }
 
 
     private void setthrowButtonClickListener() {
@@ -731,6 +549,8 @@ public class Game extends AppCompatActivity {
 
                     Log.d("Game", "Card placed on board at position: " + i);
                     checkAndRefillHand();
+                    endTurn();
+
                     return;
                 }
 
