@@ -143,7 +143,53 @@ public class Game extends AppCompatActivity {
         // התחלת המשחק והאזנה לתור
         startGame();
         startTurnListener();
+        setupBoardListener();
 
+
+    }
+
+    private void setupBoardListener() {
+        DatabaseReference boardRef = gameRef.child("board");
+
+        boardRef.addValueEventListener(new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                // עדכון הלוח רק אם זה לא השחקן שביצע את השינוי
+                SharedPreferences prefs = getSharedPreferences("MyGamePrefs", MODE_PRIVATE);
+                String currentTurn = prefs.getString("lastTurn", "");
+                String myPlayerId = prefs.getString("playerId", "");
+
+                if (!currentTurn.equals(myPlayerId)) {
+                    updateLocalBoard(snapshot);
+                }
+            }
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError error) {}
+        });
+    }
+
+    private void updateLocalBoard(DataSnapshot snapshot) {
+        for (int i = 0; i < 8; i++) {
+            DataSnapshot cardSnapshot = snapshot.child("position" + i);
+
+            if (cardSnapshot.exists()) {
+                Card card = cardSnapshot.getValue(Card.class);
+                if (card != null) {
+                    OnTheBord[i] = card;
+                    ImageButton button = getBoardButton(i);
+                    button.setImageResource(card.getImageResource());
+                    button.setTag(card);
+                    button.setVisibility(View.VISIBLE);
+                }
+            } else {
+                OnTheBord[i] = null;
+                ImageButton button = getBoardButton(i);
+                if (button != null) {
+                    button.setVisibility(View.INVISIBLE);
+                }
+            }
+        }
     }
 
     public void startGame(){
@@ -151,16 +197,6 @@ public class Game extends AppCompatActivity {
                 .getReference("rooms").child("ROOM_CODE").child("board");
 
 
-
-        // Shuffles the deck
-        for (int i = arr.length - 1; i > 0; i--)
-        {
-            int index = rnd.nextInt(i + 1);
-            // Simple swap
-            Card a = arr[index];
-            arr[index] = arr[i];
-            arr[i] = a;
-        }
 
 
         // אתחול כפתור "לזרוק"
@@ -178,6 +214,71 @@ public class Game extends AppCompatActivity {
         imageButton2 = findViewById(R.id.imageButton2);
         imageButton3 = findViewById(R.id.imageButton3);
 
+
+        SharedPreferences prefs = getSharedPreferences("MyGamePrefs", MODE_PRIVATE);
+        String playerId = prefs.getString("playerId", null);
+
+        if (playerId.equals("player1")) {
+            // רק שחקן 1 יוצר את הלוח
+            setupInitialBoard();
+        } else {
+            // שחקן 2 מחכה ללוח מ-Firebase
+            loadBoardFromFirebase();
+        }
+
+
+
+
+
+
+
+
+
+        // שמירה של הלוח ל-Firebase (4 קלפים בלבד)
+        for (int i = 0; i < 4; i++) {
+            Card card = OnTheBord[i];
+            boardRef.child(String.valueOf(i)).setValue(card);
+        }
+
+
+        imageButton8.setVisibility(View.INVISIBLE);
+
+
+
+        imageButton9.setVisibility(View.INVISIBLE);
+
+
+        imageButton10.setVisibility(View.INVISIBLE);
+
+
+        imageButton11.setVisibility(View.INVISIBLE);
+
+
+
+
+        // מאזין לכפתור "לזרוק"
+        setthrowButtonClickListener();
+    }
+
+
+    private void setupInitialBoard() {
+        // ערבוב הקלפים (רק עבור שחקן 1)
+        for (int i = arr.length - 1; i > 0; i--) {
+            int index = rnd.nextInt(i + 1);
+            Card a = arr[index];
+            arr[index] = arr[i];
+            arr[i] = a;
+        }
+
+        // יצירת הלוח
+        createBoard();
+
+        // שמירת הלוח ל-Firebase
+        saveBoardToFirebase();
+    }
+
+    private void createBoard() {
+        // הקוד הקיים ליצירת הלוח
         imageButton4.setImageResource(arr[indexOfNextCard].getImageResource());
         imageButton4.setTag(arr[indexOfNextCard]);
         OnTheBord[0] = arr[indexOfNextCard];
@@ -202,27 +303,13 @@ public class Game extends AppCompatActivity {
         arr[indexOfNextCard].SetIndex(3);
         indexOfNextCard++;
 
-        // שמירה של הלוח ל-Firebase (4 קלפים בלבד)
-        for (int i = 0; i < 4; i++) {
-            Card card = OnTheBord[i];
-            boardRef.child(String.valueOf(i)).setValue(card);
-        }
 
 
-        imageButton8.setVisibility(View.INVISIBLE);
+        // הגדרת הקלפים ביד
+        setupHandCards();
+    }
 
-
-
-        imageButton9.setVisibility(View.INVISIBLE);
-
-
-        imageButton10.setVisibility(View.INVISIBLE);
-
-
-        imageButton11.setVisibility(View.INVISIBLE);
-
-
-
+    private void setupHandCards() {
         imageButton1.setImageResource(arr[indexOfNextCard].getImageResource());
         imageButton1.setTag(arr[indexOfNextCard]);
         onTheHand[0] = indexOfNextCard;
@@ -237,8 +324,97 @@ public class Game extends AppCompatActivity {
         imageButton3.setTag(arr[indexOfNextCard]);
         onTheHand[2] = indexOfNextCard;
         indexOfNextCard++;
+    }
 
+    private void saveBoardToFirebase() {
+        DatabaseReference boardRef = gameRef.child("board");
 
+        // שמירת הקלפים על הלוח
+        for (int i = 0; i < 4; i++) {
+            boardRef.child("position" + i).setValue(OnTheBord[i]);
+        }
+
+        // שמירת המערך המעורבב
+        DatabaseReference deckRef = gameRef.child("deck");
+        for (int i = 0; i < arr.length; i++) {
+            deckRef.child(String.valueOf(i)).setValue(arr[i]);
+        }
+
+        // שמירת indexOfNextCard
+        gameRef.child("nextCardIndex").setValue(indexOfNextCard);
+    }
+
+    private void loadBoardFromFirebase() {
+        DatabaseReference boardRef = gameRef.child("board");
+
+        boardRef.addListenerForSingleValueEvent(new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                // טעינת הלוח
+                for (int i = 0; i < 4; i++) {
+                    DataSnapshot cardSnapshot = snapshot.child("position" + i);
+                    Card card = cardSnapshot.getValue(Card.class);
+                    if (card != null) {
+                        OnTheBord[i] = card;
+                        ImageButton button = getBoardButton(i);
+                        button.setImageResource(card.getImageResource());
+                        button.setTag(card);
+                    }
+                }
+
+                // טעינת המערך המעורבב
+                loadDeckFromFirebase();
+            }
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError error) {
+                Toast.makeText(Game.this, "שגיאה בטעינת הלוח", Toast.LENGTH_SHORT).show();
+            }
+        });
+    }
+
+    private void loadDeckFromFirebase() {
+        DatabaseReference deckRef = gameRef.child("deck");
+
+        deckRef.addListenerForSingleValueEvent(new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                // טעינת המערך המעורבב
+                for (int i = 0; i < arr.length; i++) {
+                    DataSnapshot cardSnapshot = snapshot.child(String.valueOf(i));
+                    Card card = cardSnapshot.getValue(Card.class);
+                    if (card != null) {
+                        arr[i] = card;
+                    }
+                }
+
+                // טעינת indexOfNextCard
+                gameRef.child("nextCardIndex").addListenerForSingleValueEvent(new ValueEventListener() {
+                    @Override
+                    public void onDataChange(@NonNull DataSnapshot snapshot) {
+                        Integer nextIndex = snapshot.getValue(Integer.class);
+                        if (nextIndex != null) {
+                            indexOfNextCard = nextIndex;
+                        }
+
+                        // הגדרת הקלפים ביד
+                        setupHandCards();
+
+                        // הפעלת המאזינים
+                        setupCardListeners();
+                    }
+
+                    @Override
+                    public void onCancelled(@NonNull DatabaseError error) {}
+                });
+            }
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError error) {}
+        });
+    }
+
+    private void setupCardListeners() {
         setCardClickListener1(imageButton1, true);
         setCardClickListener1(imageButton2, true);
         setCardClickListener1(imageButton3, true);
@@ -251,10 +427,10 @@ public class Game extends AppCompatActivity {
         setCardClickListener1(imageButton10, false);
         setCardClickListener1(imageButton11, false);
 
-
-        // מאזין לכפתור "לזרוק"
         setthrowButtonClickListener();
     }
+
+
     protected void onStart()
     {
         super.onStart();
@@ -347,10 +523,13 @@ public class Game extends AppCompatActivity {
 
     public void endTurn() {
         SharedPreferences prefs = getSharedPreferences("MyGamePrefs", MODE_PRIVATE);
-        String playerId = prefs.getString("playerId", null);  // ערך ברירת מחדל אם לא קיים
+        String playerId = prefs.getString("playerId", null);
+
+        // שמירה של מי ביצע את התור האחרון
+        prefs.edit().putString("lastTurn", playerId).apply();
+
         String nextPlayer = playerId.equals("player1") ? "player2" : "player1";
         gameRef.child("turn").setValue(nextPlayer);
-        ///startTurnListener();///לבדוק אם זה לא יעבוד שם לשים את זה אחרי הקריאה לפעולה
     }
 
     private void enablePlayerControls() {
@@ -549,6 +728,7 @@ public class Game extends AppCompatActivity {
 
                     Log.d("Game", "Card placed on board at position: " + i);
                     checkAndRefillHand();
+                    updateBoardInFirebase();
                     endTurn();
 
                     return;
@@ -558,6 +738,22 @@ public class Game extends AppCompatActivity {
 
             Log.e("Game", "No empty slot on the board!");
         });
+    }
+
+    private void updateBoardInFirebase() {
+        DatabaseReference boardRef = gameRef.child("board");
+
+        // עדכון הלוח ב-Firebase
+        for (int i = 0; i < OnTheBord.length; i++) {
+            if (OnTheBord[i] != null) {
+                boardRef.child("position" + i).setValue(OnTheBord[i]);
+            } else {
+                boardRef.child("position" + i).removeValue();
+            }
+        }
+
+        // עדכון indexOfNextCard
+        gameRef.child("nextCardIndex").setValue(indexOfNextCard);
     }
 
 
