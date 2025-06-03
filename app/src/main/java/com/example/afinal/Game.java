@@ -221,6 +221,7 @@ public class Game extends AppCompatActivity {
         if (playerId.equals("player1")) {
             // רק שחקן 1 יוצר את הלוח
             setupInitialBoard();
+            setupCardListeners();
         } else {
             // שחקן 2 מחכה ללוח מ-Firebase
             loadBoardFromFirebase();
@@ -444,8 +445,12 @@ public class Game extends AppCompatActivity {
     }
 
     private void startTurnTimer() {
-        countDownTimer = new CountDownTimer(60000, 1000) { // 60 שניות
+        // עצירת טיימר קודם אם קיים
+        if (countDownTimer != null) {
+            countDownTimer.cancel();
+        }
 
+        countDownTimer = new CountDownTimer(60000, 1000) {
             @Override
             public void onTick(long millisUntilFinished) {
                 long secondsLeft = millisUntilFinished / 1000;
@@ -454,9 +459,8 @@ public class Game extends AppCompatActivity {
 
             @Override
             public void onFinish() {
-                // כשהטיימר נגמר — מעבירים תור
                 Toast.makeText(Game.this, "נגמר הזמן! תור עובר לשחקן הבא", Toast.LENGTH_SHORT).show();
-                switchTurn();
+                endTurn();
             }
         }.start();
     }
@@ -522,14 +526,22 @@ public class Game extends AppCompatActivity {
     }
 
     public void endTurn() {
+        // בדיקה שהטיימר פועל לפני עצירה
+        if (countDownTimer != null) {
+            countDownTimer.cancel();
+            countDownTimer = null;
+        }
+
         SharedPreferences prefs = getSharedPreferences("MyGamePrefs", MODE_PRIVATE);
         String playerId = prefs.getString("playerId", null);
 
-        // שמירה של מי ביצע את התור האחרון
-        prefs.edit().putString("lastTurn", playerId).apply();
+        if (playerId != null) {
+            // שמירה של מי ביצע את התור האחרון
+            prefs.edit().putString("lastTurn", playerId).apply();
 
-        String nextPlayer = playerId.equals("player1") ? "player2" : "player1";
-        gameRef.child("turn").setValue(nextPlayer);
+            String nextPlayer = playerId.equals("player1") ? "player2" : "player1";
+            gameRef.child("turn").setValue(nextPlayer);
+        }
     }
 
     private void enablePlayerControls() {
@@ -594,35 +606,31 @@ public class Game extends AppCompatActivity {
 
     private void checkMatch() {
         if (handClickedButton != null && secondClickedButton != null) {
-            // קבלת הקלפים מהתגיות
             Card handCard = (Card) handClickedButton.getTag();
             Card boardCard1 = (Card) secondClickedButton.getTag();
 
             if (handCard != null && boardCard1 != null) {
                 // בדיקה אם שני הקלפים תואמים
                 if (handCard.getNumber() == boardCard1.getNumber()) {
-                    // התאמה נמצאה - הסתרת הקלפים
+                    // התאמה נמצאה
                     player1RoundCards.add(handCard);
                     player1RoundCards.add(boardCard1);
+
+                    // הסתרת הקלפים
                     handClickedButton.setVisibility(View.INVISIBLE);
                     secondClickedButton.setVisibility(View.INVISIBLE);
 
-                    // הפיכת הקלף שנלקח מהשולחן ל-null
-                    for (int i = 0; i < OnTheBord.length; i++) {
-                        if (OnTheBord[i] == boardCard1) {
-                            OnTheBord[i] = null;
-                            break;
-                        }
-                    }
-
-
+                    // עדכון OnTheBord
+                    updateBoardArray(boardCard1);
 
                     Log.d("Game", "Pair match found: " + handCard.getNumber() + " = " + boardCard1.getNumber());
 
-                    // איפוס המשתנים
+                    // עדכון Firebase ואיפוס
+                    updateBoardInFirebase();
                     resetSelection();
                     checkAndRefillHand();
-                    return;  // אם נמצא התאמה, יוצאים מהפונקציה
+                    endTurn();
+                    return;
                 }
             }
         }
@@ -633,50 +641,51 @@ public class Game extends AppCompatActivity {
         }
     }
 
+    private void updateBoardArray(Card... cardsToRemove) {
+        for (Card cardToRemove : cardsToRemove) {
+            for (int i = 0; i < OnTheBord.length; i++) {
+                if (OnTheBord[i] == cardToRemove) { // השוואת הפניות במקום equals
+                    OnTheBord[i] = null;
+                    break;
+                }
+            }
+        }
+    }
+
 
     private void checkTripleMatch(Card handCard) {
         if (handCard != null && secondClickedButton != null && thirdClickedButton != null) {
-            // קבלת הקלפים מהתגיות
             Card boardCard1 = (Card) secondClickedButton.getTag();
             Card boardCard2 = (Card) thirdClickedButton.getTag();
 
             if (boardCard1 != null && boardCard2 != null) {
-                // בדיקה אם סכום שני הקלפים מהלוח שווה לקלף שביד
                 if (boardCard1.getNumber() + boardCard2.getNumber() == handCard.getNumber()) {
-                    // התאמה נמצאה - הסתרת הקלפים
+                    // התאמה נמצאה
                     player1RoundCards.add(handCard);
                     player1RoundCards.add(boardCard1);
                     player1RoundCards.add(boardCard2);
+
+                    // הסתרת הקלפים
                     handClickedButton.setVisibility(View.INVISIBLE);
                     secondClickedButton.setVisibility(View.INVISIBLE);
                     thirdClickedButton.setVisibility(View.INVISIBLE);
 
-                    // הפיכת הקלף שנלקח מהשולחן ל-null
-                    for (int i = 0; i < OnTheBord.length; i++) {
-                        if (OnTheBord[i] == boardCard1) {
-                            OnTheBord[i] = null;
-                            break;
-                        }
-                    }
-
-                    // הפיכת הקלף שנלקח מהשולחן ל-null
-                    for (int i = 0; i < OnTheBord.length; i++) {
-                        if (OnTheBord[i] == boardCard2) {
-                            OnTheBord[i] = null;
-                            break;
-                        }
-                    }
-
+                    // עדכון OnTheBord
+                    updateBoardArray(boardCard1, boardCard2);
 
                     Log.d("Game", "Triple match found: " + boardCard1.getNumber() + " + " + boardCard2.getNumber() + " = " + handCard.getNumber());
+
+                    // עדכון Firebase ואיפוס
+                    updateBoardInFirebase();
+                    resetSelection();
+                    checkAndRefillHand();
+                    endTurn(); // **הוסף את זה**
                 } else {
                     Toast.makeText(this, "No match found!", Toast.LENGTH_SHORT).show();
+                    resetSelection(); // **הוסף איפוס גם כאן**
                 }
             }
         }
-        checkAndRefillHand();
-        // איפוס המשתנים
-        resetSelection();
     }
 
     private void resetSelection() {
@@ -696,47 +705,51 @@ public class Game extends AppCompatActivity {
     private void setthrowButtonClickListener() {
         throwButton.setOnClickListener(v -> {
             if (handClickedButton == null) {
-                Log.e("Game", "No card selected from hand!");
+                Toast.makeText(this, "לא נבחר קלף מהיד!", Toast.LENGTH_SHORT).show();
                 return;
             }
 
             Card selectedCard = (Card) handClickedButton.getTag();
             if (selectedCard == null) {
-                Log.e("Game", "Selected card is null!");
+                Toast.makeText(this, "הקלף הנבחר לא תקין!", Toast.LENGTH_SHORT).show();
                 return;
             }
 
             // מציאת מקום פנוי בלוח
+            boolean cardPlaced = false;
             for (int i = 0; i < OnTheBord.length; i++) {
                 if (OnTheBord[i] == null) {
-
-                    // ניקוי הקלף מהיד
-                    handClickedButton.setVisibility(View.INVISIBLE); // מחיקת הקלף מהיד
-                    handClickedButton.setTag(null);
-                    handClickedButton = null; // איפוס המשתנה
+                    // הצבת הקלף בלוח
+                    OnTheBord[i] = selectedCard;
 
                     // עדכון הכפתור המתאים בלוח
                     ImageButton boardButton = getBoardButton(i);
-                    boardButton.setImageResource(selectedCard.getImageResource());
-                    boardButton.setTag(selectedCard);
-                    boardButton.setVisibility(View.VISIBLE);
+                    if (boardButton != null) {
+                        boardButton.setImageResource(selectedCard.getImageResource());
+                        boardButton.setTag(selectedCard);
+                        boardButton.setVisibility(View.VISIBLE);
+                    }
 
-                    // שמירה במערך
-                    OnTheBord[i] = selectedCard;
-
-
+                    // ניקוי הקלף מהיד
+                    handClickedButton.setVisibility(View.INVISIBLE);
+                    handClickedButton.setTag(null);
+                    handClickedButton = null;
 
                     Log.d("Game", "Card placed on board at position: " + i);
-                    checkAndRefillHand();
+
+                    // עדכונים
                     updateBoardInFirebase();
+                    checkAndRefillHand();
                     endTurn();
 
-                    return;
+                    cardPlaced = true;
+                    break;
                 }
-
             }
 
-            Log.e("Game", "No empty slot on the board!");
+            if (!cardPlaced) {
+                Toast.makeText(this, "אין מקום פנוי בלוח!", Toast.LENGTH_SHORT).show();
+            }
         });
     }
 
@@ -752,8 +765,14 @@ public class Game extends AppCompatActivity {
             }
         }
 
-        // עדכון indexOfNextCard
+        // עדכון indexOfNextCard ו deck
         gameRef.child("nextCardIndex").setValue(indexOfNextCard);
+
+        // עדכון המערך המעורבב אם השתנה
+        DatabaseReference deckRef = gameRef.child("deck");
+        for (int i = 0; i < arr.length; i++) {
+            deckRef.child(String.valueOf(i)).setValue(arr[i]);
+        }
     }
 
 
