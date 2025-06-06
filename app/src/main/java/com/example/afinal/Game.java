@@ -31,6 +31,8 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Random;
+import android.view.animation.Animation;
+import android.view.animation.AnimationUtils;
 
 public class Game extends AppCompatActivity {
 
@@ -47,7 +49,10 @@ public class Game extends AppCompatActivity {
 
     private Button throwButton;
     LinkedList<Card> player1RoundCards = new LinkedList<>();
-    LinkedList<Card> player2 = new LinkedList<Card>();
+    LinkedList<Card> player2RoundCards = new LinkedList<>();
+    private int player1TotalScore = 0;
+    private int player2TotalScore = 0;
+    private int currentRound = 1;
 
     Card card_a_H = new Card(1,"H","1H",R.drawable.heart_a_card);
     Card card2H = new Card(2,"H","2H",R.drawable.heart2_card);
@@ -83,9 +88,20 @@ public class Game extends AppCompatActivity {
     Card card9S = new Card(9,"S","9S",R.drawable.spades9_card);
     Card card10S = new Card(10,"S","10S",R.drawable.spades10_card);
 
+    Card card_a_C = new Card(1,"C","1C",R.drawable.clover_a_card);
+    Card card2C = new Card(2,"C","2C",R.drawable.clover2_card);
+    Card card3C = new Card(3,"C","3C",R.drawable.clover3_card);
+    Card card4C = new Card(4,"C","4C",R.drawable.clover4_card);
+    Card card5C = new Card(5,"C","5C",R.drawable.clover5_card);
+    Card card6C = new Card(6,"C","6C",R.drawable.clover6_card);
+    Card card7C = new Card(7,"C","7C",R.drawable.clover7_card);
+    Card card8C = new Card(8,"C","8C",R.drawable.clover8_card);
+    Card card9C = new Card(9,"C","9C",R.drawable.clover9_card);
+    Card card10C = new Card(10,"C","10C",R.drawable.clover10_card);
+
 
     int indexOfNextCard = 0;
-    Card[] arr = {card_a_H,card2H,card3H,card4H,card5H,card6H,card7H,card8H,card9H,card10H,card_a_D,card2D,card3D,card4D,card5D,card6D,card7D,card8D,card9D,card10D,card_a_S,card2S,card3S,card4S,card5S,card6S,card7S,card8S,card9S,card10S};
+    Card[] arr = {card_a_H,card2H,card3H,card4H,card5H,card6H,card7H,card8H,card9H,card10H,card_a_D,card2D,card3D,card4D,card5D,card6D,card7D,card8D,card9D,card10D,card_a_S,card2S,card3S,card4S,card5S,card6S,card7S,card8S,card9S,card10S,card_a_C,card2C,card3C,card4C,card5C,card6C,card7C,card8C,card9C,card10C};
     Random rnd = new Random();
 
     Card[] use_card = new Card[9];
@@ -154,14 +170,8 @@ public class Game extends AppCompatActivity {
         boardRef.addValueEventListener(new ValueEventListener() {
             @Override
             public void onDataChange(@NonNull DataSnapshot snapshot) {
-                // עדכון הלוח רק אם זה לא השחקן שביצע את השינוי
-                SharedPreferences prefs = getSharedPreferences("MyGamePrefs", MODE_PRIVATE);
-                String currentTurn = prefs.getString("lastTurn", "");
-                String myPlayerId = prefs.getString("playerId", "");
-
-                if (!currentTurn.equals(myPlayerId)) {
-                    updateLocalBoard(snapshot);
-                }
+                // תמיד נעדכן את הלוח המקומי מ-Firebase
+                updateLocalBoard(snapshot);
             }
 
             @Override
@@ -333,6 +343,7 @@ public class Game extends AppCompatActivity {
         // שמירת הקלפים על הלוח
         for (int i = 0; i < 4; i++) {
             boardRef.child("position" + i).setValue(OnTheBord[i]);
+
         }
 
         // שמירת המערך המעורבב
@@ -610,22 +621,23 @@ public class Game extends AppCompatActivity {
             Card boardCard1 = (Card) secondClickedButton.getTag();
 
             if (handCard != null && boardCard1 != null) {
-                // בדיקה אם שני הקלפים תואמים
                 if (handCard.getNumber() == boardCard1.getNumber()) {
-                    // התאמה נמצאה
-                    player1RoundCards.add(handCard);
-                    player1RoundCards.add(boardCard1);
+                    // זיהוי השחקן הנוכחי
+                    SharedPreferences prefs = getSharedPreferences("MyGamePrefs", MODE_PRIVATE);
+                    String currentPlayerId = prefs.getString("playerId", "");
 
-                    // הסתרת הקלפים
-                    handClickedButton.setVisibility(View.INVISIBLE);
-                    secondClickedButton.setVisibility(View.INVISIBLE);
+                    // הוספה לרשימה המתאימה
+                    if (currentPlayerId.equals("player1")) {
+                        player1RoundCards.add(handCard);
+                        player1RoundCards.add(boardCard1);
+                    } else {
+                        player2RoundCards.add(handCard);
+                        player2RoundCards.add(boardCard1);
+                    }
 
-                    // עדכון OnTheBord
+                    animateCardDisappear(handClickedButton, 0);
+                    animateCardDisappear(secondClickedButton, 200);
                     updateBoardArray(boardCard1);
-
-                    Log.d("Game", "Pair match found: " + handCard.getNumber() + " = " + boardCard1.getNumber());
-
-                    // עדכון Firebase ואיפוס
                     updateBoardInFirebase();
                     resetSelection();
                     checkAndRefillHand();
@@ -660,29 +672,32 @@ public class Game extends AppCompatActivity {
 
             if (boardCard1 != null && boardCard2 != null) {
                 if (boardCard1.getNumber() + boardCard2.getNumber() == handCard.getNumber()) {
-                    // התאמה נמצאה
-                    player1RoundCards.add(handCard);
-                    player1RoundCards.add(boardCard1);
-                    player1RoundCards.add(boardCard2);
+                    // זיהוי השחקן הנוכחי
+                    SharedPreferences prefs = getSharedPreferences("MyGamePrefs", MODE_PRIVATE);
+                    String currentPlayerId = prefs.getString("playerId", "");
 
-                    // הסתרת הקלפים
-                    handClickedButton.setVisibility(View.INVISIBLE);
-                    secondClickedButton.setVisibility(View.INVISIBLE);
-                    thirdClickedButton.setVisibility(View.INVISIBLE);
+                    // הוספה לרשימה המתאימה
+                    if (currentPlayerId.equals("player1")) {
+                        player1RoundCards.add(handCard);
+                        player1RoundCards.add(boardCard1);
+                        player1RoundCards.add(boardCard2);
+                    } else {
+                        player2RoundCards.add(handCard);
+                        player2RoundCards.add(boardCard1);
+                        player2RoundCards.add(boardCard2);
+                    }
 
-                    // עדכון OnTheBord
+                    animateCardDisappear(handClickedButton, 0);
+                    animateCardDisappear(secondClickedButton, 200);
+                    animateCardDisappear(thirdClickedButton, 400);
                     updateBoardArray(boardCard1, boardCard2);
-
-                    Log.d("Game", "Triple match found: " + boardCard1.getNumber() + " + " + boardCard2.getNumber() + " = " + handCard.getNumber());
-
-                    // עדכון Firebase ואיפוס
                     updateBoardInFirebase();
                     resetSelection();
                     checkAndRefillHand();
-                    endTurn(); // **הוסף את זה**
+                    endTurn();
                 } else {
                     Toast.makeText(this, "No match found!", Toast.LENGTH_SHORT).show();
-                    resetSelection(); // **הוסף איפוס גם כאן**
+                    resetSelection();
                 }
             }
         }
@@ -696,7 +711,23 @@ public class Game extends AppCompatActivity {
 
 
 
+    private void animateCardDisappear(ImageButton button, int delay) {
+        Animation fadeUpAnimation = AnimationUtils.loadAnimation(this, R.anim.fade_in_out);
+        fadeUpAnimation.setStartOffset(delay);
+        fadeUpAnimation.setAnimationListener(new Animation.AnimationListener() {
+            @Override
+            public void onAnimationStart(Animation animation) {}
 
+            @Override
+            public void onAnimationEnd(Animation animation) {
+                button.setVisibility(View.INVISIBLE);
+            }
+
+            @Override
+            public void onAnimationRepeat(Animation animation) {}
+        });
+        button.startAnimation(fadeUpAnimation);
+    }
 
 
 
@@ -785,64 +816,152 @@ public class Game extends AppCompatActivity {
                 imageButton3.getVisibility() == View.INVISIBLE;
 
         if (allInvisible) {
-
-            if (arr.length == 0) {
-                analyzePlayer1Round(player1RoundCards);
-            }
-            else
-            {
+            if (indexOfNextCard >= arr.length) { // שינוי התנאי כדי לבדוק אם נגמרו הקלפים
+                // הסיבוב הסתיים - חישוב תוצאות
+                Log.d("Game", "bnrkjbnkr");
+                Log.d("Game", "indexof" + indexOfNextCard );
+                Log.d("Game", "length" + arr.length);
+                calculateRoundResults();
+            } else {
                 Log.d("Game", "All hand cards are used. Refilling...");
+                // מילוי מחדש של הקלפים ביד
                 imageButton1.setImageResource(arr[indexOfNextCard].getImageResource());
                 imageButton1.setTag(arr[indexOfNextCard]);
                 onTheHand[0] = indexOfNextCard;
                 indexOfNextCard++;
                 imageButton1.setVisibility(View.VISIBLE);
+
                 imageButton2.setImageResource(arr[indexOfNextCard].getImageResource());
                 imageButton2.setTag(arr[indexOfNextCard]);
                 onTheHand[1] = indexOfNextCard;
                 indexOfNextCard++;
                 imageButton2.setVisibility(View.VISIBLE);
+
                 imageButton3.setImageResource(arr[indexOfNextCard].getImageResource());
                 imageButton3.setTag(arr[indexOfNextCard]);
                 onTheHand[2] = indexOfNextCard;
                 indexOfNextCard++;
                 imageButton3.setVisibility(View.VISIBLE);
             }
-
         }
     }
 
-    private void analyzePlayer1Round(LinkedList<Card> roundCards)
-    {
-        int sevensCount1 = 0;
-        int diamondsCount1 = 0;
-        int totalCards1 = roundCards.size();
-        int score1 = 0;
 
-        for (Card card : roundCards)
-        {
-            if (card.getNumber() == 7)
-            {
-                sevensCount1++;
+    private void calculateRoundResults() {
+        // חישוב הנקודות (הקוד נשאר אותו דבר)
+        int player1TotalCards = player1RoundCards.size();
+        int player1Diamonds = 0;
+        int player1Sevens = 0;
+
+        for (Card card : player1RoundCards) {
+            if (Objects.equals(card.getShape(), "D")) {
+                player1Diamonds++;
             }
-            if (Objects.equals(card.getShape(), "D"))
-            {
-                diamondsCount1++;
+            if (card.getNumber() == 7) {
+                player1Sevens++;
             }
         }
 
-        score1 = sevensCount1 + diamondsCount1;
+        int player2TotalCards = player2RoundCards.size();
+        int player2Diamonds = 0;
+        int player2Sevens = 0;
+
+        for (Card card : player2RoundCards) {
+            if (Objects.equals(card.getShape(), "D")) {
+                player2Diamonds++;
+            }
+            if (card.getNumber() == 7) {
+                player2Sevens++;
+            }
+        }
+
+        int player1RoundScore = 0;
+        int player2RoundScore = 0;
+
+        if (player1TotalCards > player2TotalCards) {
+            player1RoundScore++;
+        } else if (player2TotalCards > player1TotalCards) {
+            player2RoundScore++;
+        }
+
+        if (player1Diamonds > player2Diamonds) {
+            player1RoundScore++;
+        } else if (player2Diamonds > player1Diamonds) {
+            player2RoundScore++;
+        }
+
+        if (player1Sevens > player2Sevens) {
+            player1RoundScore++;
+        } else if (player2Sevens > player1Sevens) {
+            player2RoundScore++;
+        }
+
+        player1TotalScore += player1RoundScore;
+        player2TotalScore += player2RoundScore;
 
         TextView textView5 = findViewById(R.id.textView5);
-        textView5.setText(score1);
+        textView5.setText("Player 1: " + player1TotalScore + " | Player 2: " + player2TotalScore);
 
+        // התחלת סיבוב חדש
+        startNewRound();
+    }
 
+    private void startNewRound() {
+        currentRound++;
 
-        Log.d("RoundStats", "Player 1 collected " + totalCards1 + " cards.");
-        Log.d("RoundStats", "Number of 7s: " + sevensCount1);
-        Log.d("RoundStats", "Number of Diamonds: " + diamondsCount1);
+        // הודעה על סיבוב חדש
+        Toast.makeText(this, "סיבוב " + currentRound, Toast.LENGTH_SHORT).show();
 
+        // איפוס הקלפים שנאספו
+        player1RoundCards.clear();
+        player2RoundCards.clear();
 
+        // ערבוב הקלפים מחדש
+        for (int i = arr.length - 1; i > 0; i--) {
+            int index = rnd.nextInt(i + 1);
+            Card temp = arr[index];
+            arr[index] = arr[i];
+            arr[i] = temp;
+        }
+
+        // איפוס מונה הקלפים
+        indexOfNextCard = 0;
+
+        // ניקוי הלוח
+        clearBoard();
+
+        // יצירת לוח חדש
+        createBoard();
+
+        // עדכון Firebase
+        SharedPreferences prefs = getSharedPreferences("MyGamePrefs", MODE_PRIVATE);
+        String playerId = prefs.getString("playerId", null);
+
+        if (playerId.equals("player1")) {
+            // רק שחקן 1 עושה את העדכון
+            saveBoardToFirebase();
+        }
+    }
+
+    private void clearBoard() {
+        // ניקוי המערך
+        for (int i = 0; i < OnTheBord.length; i++) {
+            OnTheBord[i] = null;
+        }
+
+        // הסתרת כל הכפתורים
+        imageButton4.setVisibility(View.INVISIBLE);
+        imageButton5.setVisibility(View.INVISIBLE);
+        imageButton6.setVisibility(View.INVISIBLE);
+        imageButton7.setVisibility(View.INVISIBLE);
+        imageButton8.setVisibility(View.INVISIBLE);
+        imageButton9.setVisibility(View.INVISIBLE);
+        imageButton10.setVisibility(View.INVISIBLE);
+        imageButton11.setVisibility(View.INVISIBLE);
+
+        imageButton1.setVisibility(View.INVISIBLE);
+        imageButton2.setVisibility(View.INVISIBLE);
+        imageButton3.setVisibility(View.INVISIBLE);
     }
 
 
@@ -867,11 +986,4 @@ public class Game extends AppCompatActivity {
 
 
 
-    private GradientDrawable createOutline(String color, int strokeWidth) {
-        GradientDrawable outline = new GradientDrawable();
-        outline.setColor(0x00000000); // Transparent background
-        outline.setStroke(strokeWidth, android.graphics.Color.parseColor(color)); // Outline color and width
-        outline.setCornerRadius(8f); // Optional: Rounded corners
-        return outline;
-    }
 }
