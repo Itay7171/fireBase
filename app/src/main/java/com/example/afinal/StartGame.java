@@ -175,6 +175,12 @@ public class StartGame extends AppCompatActivity {
         startActivity(intent);
     }
 
+    public void moveToLeaderBoard(View view) {
+        Toast.makeText(this, "Click", Toast.LENGTH_SHORT).show();
+        Intent intent = new Intent(this, LeaderBoard.class);
+        startActivity(intent);
+    }
+
     @Override
     protected void onStart() {
         super.onStart();

@@ -1,8 +1,8 @@
 package com.example.afinal;
 
+import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
-import android.graphics.drawable.GradientDrawable;
 import android.net.ConnectivityManager;
 import android.os.Bundle;
 import android.os.CountDownTimer;
@@ -26,9 +26,7 @@ import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.ValueEventListener;
 
-import java.util.ArrayList;
 import java.util.LinkedList;
-import java.util.List;
 import java.util.Objects;
 import java.util.Random;
 import android.view.animation.Animation;
@@ -39,10 +37,8 @@ public class Game extends AppCompatActivity {
 
 
     ImageButton imageButton1,imageButton2,imageButton3,imageButton4,imageButton5,imageButton6,imageButton7,imageButton8,imageButton9,imageButton10,imageButton11 ;
-    boolean isBorderAdded = false;
     private ImageButton handClickedButton = null;
     private ImageButton secondClickedButton = null;
-    private ImageButton selectedCardButton = null;
     private ImageButton thirdClickedButton = null; // הוספת המשתנה החסר
     private DatabaseReference gameRef;
     Wifi_Reciver WifiModeChangeReciver = new Wifi_Reciver();
@@ -53,6 +49,13 @@ public class Game extends AppCompatActivity {
     private int player1TotalScore = 0;
     private int player2TotalScore = 0;
     private int currentRound = 1;
+    private String lastPlayerToTakeCard = null;
+    private int pendingAnimations = 0;
+    private boolean shouldRefillHand = false;
+
+
+
+
 
     Card card_a_H = new Card(1,"H","1H",R.drawable.heart_a_card);
     Card card2H = new Card(2,"H","2H",R.drawable.heart2_card);
@@ -101,7 +104,8 @@ public class Game extends AppCompatActivity {
 
 
     int indexOfNextCard = 0;
-    Card[] arr = {card_a_H,card2H,card3H,card4H,card5H,card6H,card7H,card8H,card9H,card10H,card_a_D,card2D,card3D,card4D,card5D,card6D,card7D,card8D,card9D,card10D,card_a_S,card2S,card3S,card4S,card5S,card6S,card7S,card8S,card9S,card10S,card_a_C,card2C,card3C,card4C,card5C,card6C,card7C,card8C,card9C,card10C};
+    Card[] arr = {card3D,card4D,card5D,card6D,card7D,card8D,card9D,card10D,card_a_S,card2S,card3S,card4S,card5S,card6S,card7S,card8S,card9S,card10S};
+    ///Card[] arr = {card3H,card4H,card5H,card6H,card7H,card8H,card9H,card10H,card_a_D,card2D,card3D,card4D,card5D,card6D,card7D,card8D,card9D,card10D,card_a_S,card2S,card3S,card4S,card5S,card6S,card7S,card8S,card9S,card10S,card_a_C,card2C,card3C,card4C,card5C,card6C,card7C,card8C,card9C,card10C};
     Random rnd = new Random();
 
     Card[] use_card = new Card[9];
@@ -112,6 +116,9 @@ public class Game extends AppCompatActivity {
     private TextView timerText;
     private CountDownTimer countDownTimer;
     private int currentPlayer = 1; // נניח שחקן 1 מתחיל
+    private boolean isExitingGame = false;
+
+
 
 
     @Override
@@ -137,6 +144,8 @@ public class Game extends AppCompatActivity {
         }
 
         gameRef = FirebaseDatabase.getInstance().getReference("games").child(roomId);
+        setupPlayerExitListener();
+
 
         // מקבלים את התפקיד של השחקן (player1 או player2)
         String playerId = getIntent().getStringExtra("playerId");
@@ -151,6 +160,10 @@ public class Game extends AppCompatActivity {
         SharedPreferences prefs = getSharedPreferences("MyGamePrefs", MODE_PRIVATE);
         prefs.edit().putString("playerId", playerId).apply();
 
+        Log.d("Game", "=== PLAYER IDENTITY ===");
+        Log.d("Game", "This device is: " + playerId);
+        Log.d("Game", "Room ID: " + getIntent().getStringExtra("roomId"));
+
         // אם זה player1 – הוא מתחיל
         if (playerId.equals("player1")) {
             gameRef.child("turn").setValue("player1");
@@ -159,9 +172,145 @@ public class Game extends AppCompatActivity {
         // התחלת המשחק והאזנה לתור
         startGame();
         startTurnListener();
+        setupNewRoundListener();
+        setupScoreListener();
         setupBoardListener();
 
 
+
+
+    }
+
+
+    private void setupPlayerExitListener() {
+        gameRef.child("playerExit").addValueEventListener(new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                String exitingPlayer = snapshot.getValue(String.class);
+                if (exitingPlayer != null && !isExitingGame) {
+                    SharedPreferences prefs = getSharedPreferences("MyGamePrefs", MODE_PRIVATE);
+                    String currentPlayerId = prefs.getString("playerId", "");
+
+                    // אם השחקן שיצא זה לא השחקן הנוכחי
+                    if (!exitingPlayer.equals(currentPlayerId)) {
+                        String playerName = exitingPlayer.equals("player1") ? "שחקן 1" : "שחקן 2";
+                        Toast.makeText(Game.this, playerName + " עזב את המשחק", Toast.LENGTH_LONG).show();
+
+                        // מחזיר למסך StartGame אחרי 2 שניות
+                        new android.os.Handler().postDelayed(new Runnable() {
+                            @Override
+                            public void run() {
+                                Intent intent = new Intent(Game.this, StartGame.class);
+                                startActivity(intent);
+                                finish();
+                            }
+                        }, 2000);
+                    }
+                }
+            }
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError error) {}
+        });
+    }
+
+    // עדכן את הפונקציה moveToStartGame הקיימת
+    public void moveToStartGame(View view) {
+        exitGame();
+    }
+
+    // הוסף פונקציה חדשה לטיפול ביציאה מהמשחק
+    private void exitGame() {
+        isExitingGame = true;
+
+        SharedPreferences prefs = getSharedPreferences("MyGamePrefs", MODE_PRIVATE);
+        String currentPlayerId = prefs.getString("playerId", "");
+
+        // שליחת הודעה ש-Firebase על יציאת השחקן
+        gameRef.child("playerExit").setValue(currentPlayerId);
+
+        // מעבר למסך StartGame
+        Intent intent = new Intent(this, StartGame.class);
+        startActivity(intent);
+        finish();
+    }
+
+    @Override
+    public void onBackPressed() {
+        exitGame();
+        super.onBackPressed();
+    }
+
+
+    // הוסף override ל-onDestroy
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+
+        // ניקוי טיימר
+        if (countDownTimer != null) {
+            countDownTimer.cancel();
+        }
+
+        // אם יוצאים מהמשחק, שלח הודעה
+        if (!isExitingGame) {
+            SharedPreferences prefs = getSharedPreferences("MyGamePrefs", MODE_PRIVATE);
+            String currentPlayerId = prefs.getString("playerId", "");
+            if (currentPlayerId != null && !currentPlayerId.isEmpty()) {
+                gameRef.child("playerExit").setValue(currentPlayerId);
+            }
+        }
+    }
+
+    // הוסף override ל-onPause
+    @Override
+    protected void onPause() {
+        super.onPause();
+
+        // אם האפליקציה עוברת ל-background, זה עלול להיות יציאה
+        if (isFinishing()) {
+            exitGame();
+        }
+    }
+
+
+
+    private void setupNewRoundListener() {
+        gameRef.child("currentRound").addValueEventListener(new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                Integer roundNumber = snapshot.getValue(Integer.class);
+                Log.d("Game", "Round listener triggered: " + roundNumber + ", Current: " + currentRound);
+
+                if (roundNumber != null && roundNumber > currentRound) {
+                    currentRound = roundNumber;
+
+                    SharedPreferences prefs = getSharedPreferences("MyGamePrefs", MODE_PRIVATE);
+                    String playerId = prefs.getString("playerId", null);
+
+                    Log.d("Game", "New round detected by: " + playerId);
+
+                    // הודעת Toast לשני השחקנים
+                    Toast.makeText(Game.this, "סיבוב " + currentRound + " מתחיל!", Toast.LENGTH_LONG).show();
+
+                    // איפוס נתונים מקומיים
+                    lastPlayerToTakeCard = null;
+                    player1RoundCards.clear();
+                    player2RoundCards.clear();
+
+                    // ניקוי מיידי של כל הקלפים
+                    clearAllCardsImmediately();
+
+                    if (playerId.equals("player2")) {
+                        // רק שחקן 2 טוען מ-Firebase
+                        loadBoardFromFirebase();
+                    }
+                }
+            }
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError error) {}
+        });
     }
 
     private void setupBoardListener() {
@@ -236,13 +385,6 @@ public class Game extends AppCompatActivity {
             // שחקן 2 מחכה ללוח מ-Firebase
             loadBoardFromFirebase();
         }
-
-
-
-
-
-
-
 
 
         // שמירה של הלוח ל-Firebase (4 קלפים בלבד)
@@ -321,18 +463,27 @@ public class Game extends AppCompatActivity {
     }
 
     private void setupHandCards() {
+        // וודא שיש מספיק קלפים
+        if (indexOfNextCard + 2 >= arr.length) {
+            Log.e("Game", "Not enough cards for hand setup");
+            return;
+        }
+
         imageButton1.setImageResource(arr[indexOfNextCard].getImageResource());
         imageButton1.setTag(arr[indexOfNextCard]);
+        imageButton1.setVisibility(View.VISIBLE);
         onTheHand[0] = indexOfNextCard;
         indexOfNextCard++;
 
         imageButton2.setImageResource(arr[indexOfNextCard].getImageResource());
         imageButton2.setTag(arr[indexOfNextCard]);
+        imageButton2.setVisibility(View.VISIBLE);
         onTheHand[1] = indexOfNextCard;
         indexOfNextCard++;
 
         imageButton3.setImageResource(arr[indexOfNextCard].getImageResource());
         imageButton3.setTag(arr[indexOfNextCard]);
+        imageButton3.setVisibility(View.VISIBLE);
         onTheHand[2] = indexOfNextCard;
         indexOfNextCard++;
     }
@@ -343,7 +494,6 @@ public class Game extends AppCompatActivity {
         // שמירת הקלפים על הלוח
         for (int i = 0; i < 4; i++) {
             boardRef.child("position" + i).setValue(OnTheBord[i]);
-
         }
 
         // שמירת המערך המעורבב
@@ -354,6 +504,9 @@ public class Game extends AppCompatActivity {
 
         // שמירת indexOfNextCard
         gameRef.child("nextCardIndex").setValue(indexOfNextCard);
+
+        // שמירת מספר הסיבוב הנוכחי
+        gameRef.child("currentRound").setValue(currentRound);
     }
 
     private void loadBoardFromFirebase() {
@@ -476,13 +629,6 @@ public class Game extends AppCompatActivity {
         }.start();
     }
 
-    private void switchTurn() {
-        // החלפת שחקן (בדוגמה בין 1 ל־2)
-        currentPlayer = (currentPlayer == 1) ? 2 : 1;
-        Toast.makeText(this, "תור שחקן " + currentPlayer, Toast.LENGTH_SHORT).show();
-
-        // התחלת טיימר חדש
-    }
 
     private void setCardClickListener1(ImageButton button, boolean isHandCard)
     {
@@ -594,7 +740,32 @@ public class Game extends AppCompatActivity {
         Log.d("Game", "Player controls disabled");
     }
 
+    private void setupScoreListener() {
+        gameRef.child("roundScores").addValueEventListener(new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                Integer roundNumber = snapshot.child("roundNumber").getValue(Integer.class);
+                Integer player1Score = snapshot.child("player1RoundScore").getValue(Integer.class);
+                Integer player2Score = snapshot.child("player2RoundScore").getValue(Integer.class);
 
+                if (roundNumber != null && player1Score != null && player2Score != null) {
+                    // עדכון לוח הניקוד לכל השחקנים באותו זמן
+                    TextView textView5 = findViewById(R.id.textView5);
+                    textView5.setText(" " + player1Score + "    :    " + player2Score + " ");
+
+                    // עדכון הניקוד הכולל
+                    player1TotalScore += player1Score;
+                    player2TotalScore += player2Score;
+
+                    Log.d("Game", "Score updated for round " + roundNumber +
+                            " - Player1: " + player1Score + ", Player2: " + player2Score);
+                }
+            }
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError error) {}
+        });
+    }
 
 
 
@@ -622,11 +793,11 @@ public class Game extends AppCompatActivity {
 
             if (handCard != null && boardCard1 != null) {
                 if (handCard.getNumber() == boardCard1.getNumber()) {
-                    // זיהוי השחקן הנוכחי
                     SharedPreferences prefs = getSharedPreferences("MyGamePrefs", MODE_PRIVATE);
                     String currentPlayerId = prefs.getString("playerId", "");
 
-                    // הוספה לרשימה המתאימה
+                    lastPlayerToTakeCard = currentPlayerId;
+
                     if (currentPlayerId.equals("player1")) {
                         player1RoundCards.add(handCard);
                         player1RoundCards.add(boardCard1);
@@ -635,35 +806,25 @@ public class Game extends AppCompatActivity {
                         player2RoundCards.add(boardCard1);
                     }
 
+                    // סמן שצריך לחדש את הקלפים ביד אחרי האנימציות
+                    shouldRefillHand = true;
+                    pendingAnimations = 2; // יש לנו 2 אנימציות
+
                     animateCardDisappear(handClickedButton, 0);
                     animateCardDisappear(secondClickedButton, 200);
                     updateBoardArray(boardCard1);
                     updateBoardInFirebase();
                     resetSelection();
-                    checkAndRefillHand();
                     endTurn();
                     return;
                 }
             }
         }
 
-        // אם אין התאמה, ננסה התאמה לשלושה קלפים
         if (handClickedButton != null && secondClickedButton != null && thirdClickedButton != null) {
             checkTripleMatch((Card) handClickedButton.getTag());
         }
     }
-
-    private void updateBoardArray(Card... cardsToRemove) {
-        for (Card cardToRemove : cardsToRemove) {
-            for (int i = 0; i < OnTheBord.length; i++) {
-                if (OnTheBord[i] == cardToRemove) { // השוואת הפניות במקום equals
-                    OnTheBord[i] = null;
-                    break;
-                }
-            }
-        }
-    }
-
 
     private void checkTripleMatch(Card handCard) {
         if (handCard != null && secondClickedButton != null && thirdClickedButton != null) {
@@ -672,11 +833,11 @@ public class Game extends AppCompatActivity {
 
             if (boardCard1 != null && boardCard2 != null) {
                 if (boardCard1.getNumber() + boardCard2.getNumber() == handCard.getNumber()) {
-                    // זיהוי השחקן הנוכחי
                     SharedPreferences prefs = getSharedPreferences("MyGamePrefs", MODE_PRIVATE);
                     String currentPlayerId = prefs.getString("playerId", "");
 
-                    // הוספה לרשימה המתאימה
+                    lastPlayerToTakeCard = currentPlayerId;
+
                     if (currentPlayerId.equals("player1")) {
                         player1RoundCards.add(handCard);
                         player1RoundCards.add(boardCard1);
@@ -687,13 +848,16 @@ public class Game extends AppCompatActivity {
                         player2RoundCards.add(boardCard2);
                     }
 
+                    // סמן שצריך לחדש את הקלפים ביד אחרי האנימציות
+                    shouldRefillHand = true;
+                    pendingAnimations = 3; // יש לנו 3 אנימציות
+
                     animateCardDisappear(handClickedButton, 0);
                     animateCardDisappear(secondClickedButton, 200);
                     animateCardDisappear(thirdClickedButton, 400);
                     updateBoardArray(boardCard1, boardCard2);
                     updateBoardInFirebase();
                     resetSelection();
-                    checkAndRefillHand();
                     endTurn();
                 } else {
                     Toast.makeText(this, "No match found!", Toast.LENGTH_SHORT).show();
@@ -721,12 +885,40 @@ public class Game extends AppCompatActivity {
             @Override
             public void onAnimationEnd(Animation animation) {
                 button.setVisibility(View.INVISIBLE);
+
+                // הקטן את מונה האנימציות
+                pendingAnimations--;
+
+                // אם כל האנימציות הסתיימו וצריך לחדש את הקלפים ביד
+                if (pendingAnimations == 0 && shouldRefillHand) {
+                    shouldRefillHand = false;
+
+                    // בדיקה אם יש מספיק קלפים לפני חידוש היד
+                    int remainingCards = arr.length - indexOfNextCard;
+                    if (remainingCards < 3) {
+                        Log.d("Game", "Not enough cards after animation. Ending round...");
+                        calculateRoundResults();
+                    } else {
+                        checkAndRefillHand();
+                    }
+                }
             }
 
             @Override
             public void onAnimationRepeat(Animation animation) {}
         });
         button.startAnimation(fadeUpAnimation);
+    }
+
+    private void updateBoardArray(Card... cardsToRemove) {
+        for (Card cardToRemove : cardsToRemove) {
+            for (int i = 0; i < OnTheBord.length; i++) {
+                if (OnTheBord[i] == cardToRemove) { // השוואת הפניות במקום equals
+                    OnTheBord[i] = null;
+                    break;
+                }
+            }
+        }
     }
 
 
@@ -750,10 +942,8 @@ public class Game extends AppCompatActivity {
             boolean cardPlaced = false;
             for (int i = 0; i < OnTheBord.length; i++) {
                 if (OnTheBord[i] == null) {
-                    // הצבת הקלף בלוח
                     OnTheBord[i] = selectedCard;
 
-                    // עדכון הכפתור המתאים בלוח
                     ImageButton boardButton = getBoardButton(i);
                     if (boardButton != null) {
                         boardButton.setImageResource(selectedCard.getImageResource());
@@ -761,16 +951,17 @@ public class Game extends AppCompatActivity {
                         boardButton.setVisibility(View.VISIBLE);
                     }
 
-                    // ניקוי הקלף מהיד
+                    // הסתר את הקלף מהיד
                     handClickedButton.setVisibility(View.INVISIBLE);
                     handClickedButton.setTag(null);
                     handClickedButton = null;
 
-                    Log.d("Game", "Card placed on board at position: " + i);
+                    Log.d("Game", "Card thrown to board at position: " + i);
 
-                    // עדכונים
                     updateBoardInFirebase();
-                    checkAndRefillHand();
+
+                    // בדיקה אם צריך למלא קלף בודד או לסיים את הסיבוב
+                    checkSingleCardRefill();
                     endTurn();
 
                     cardPlaced = true;
@@ -782,6 +973,51 @@ public class Game extends AppCompatActivity {
                 Toast.makeText(this, "אין מקום פנוי בלוח!", Toast.LENGTH_SHORT).show();
             }
         });
+    }
+
+    private void checkSingleCardRefill() {
+        // בדיקה כמה קלפים נשארו
+        int remainingCards = arr.length - indexOfNextCard;
+
+        if (remainingCards <= 0) {
+            // אם הקלפים נגמרו, בדוק אם כל השחקנים צריכים לסיים
+            checkIfRoundShouldEnd();
+            return;
+        }
+
+        // מציאת איזה קלף נזרק (הקלף הראשון שלא נראה)
+        if (imageButton1.getVisibility() == View.INVISIBLE) {
+            imageButton1.setImageResource(arr[indexOfNextCard].getImageResource());
+            imageButton1.setTag(arr[indexOfNextCard]);
+            onTheHand[0] = indexOfNextCard;
+            indexOfNextCard++;
+            imageButton1.setVisibility(View.VISIBLE);
+        } else if (imageButton2.getVisibility() == View.INVISIBLE) {
+            imageButton2.setImageResource(arr[indexOfNextCard].getImageResource());
+            imageButton2.setTag(arr[indexOfNextCard]);
+            onTheHand[1] = indexOfNextCard;
+            indexOfNextCard++;
+            imageButton2.setVisibility(View.VISIBLE);
+        } else if (imageButton3.getVisibility() == View.INVISIBLE) {
+            imageButton3.setImageResource(arr[indexOfNextCard].getImageResource());
+            imageButton3.setTag(arr[indexOfNextCard]);
+            onTheHand[2] = indexOfNextCard;
+            indexOfNextCard++;
+            imageButton3.setVisibility(View.VISIBLE);
+        }
+
+        updateBoardInFirebase();
+    }
+
+    private void checkIfRoundShouldEnd() {
+        // בדיקה אם נגמרו הקלפים ולכולם אין יד מלאה
+        int remainingCards = arr.length - indexOfNextCard;
+
+        if (remainingCards <= 0) {
+            // הקלפים נגמרו - סיים את הסיבוב
+            Log.d("Game", "Deck is empty. Ending round...");
+            calculateRoundResults();
+        }
     }
 
     private void updateBoardInFirebase() {
@@ -811,44 +1047,131 @@ public class Game extends AppCompatActivity {
 
 
     private void checkAndRefillHand() {
-        boolean allInvisible = imageButton1.getVisibility() == View.INVISIBLE &&
-                imageButton2.getVisibility() == View.INVISIBLE &&
-                imageButton3.getVisibility() == View.INVISIBLE;
+        boolean handCard1Empty = imageButton1.getVisibility() == View.INVISIBLE;
+        boolean handCard2Empty = imageButton2.getVisibility() == View.INVISIBLE;
+        boolean handCard3Empty = imageButton3.getVisibility() == View.INVISIBLE;
+
+        // בדיקה אם כל הקלפים ביד נגמרו
+        boolean allInvisible = handCard1Empty && handCard2Empty && handCard3Empty;
 
         if (allInvisible) {
-            if (indexOfNextCard >= arr.length) { // שינוי התנאי כדי לבדוק אם נגמרו הקלפים
-                // הסיבוב הסתיים - חישוב תוצאות
-                Log.d("Game", "bnrkjbnkr");
-                Log.d("Game", "indexof" + indexOfNextCard );
-                Log.d("Game", "length" + arr.length);
+            // בדיקה כמה קלפים נשארו בקופה
+            int remainingCards = arr.length - indexOfNextCard;
+            Log.d("Game", "Cards remaining in deck: " + remainingCards);
+
+            if (remainingCards < 3) {
+                // אם נשארו פחות מ-3 קלפים, סיים את הסיבוב
+                Log.d("Game", "Not enough cards for full hand. Ending round...");
                 calculateRoundResults();
-            } else {
-                Log.d("Game", "All hand cards are used. Refilling...");
-                // מילוי מחדש של הקלפים ביד
-                imageButton1.setImageResource(arr[indexOfNextCard].getImageResource());
-                imageButton1.setTag(arr[indexOfNextCard]);
-                onTheHand[0] = indexOfNextCard;
-                indexOfNextCard++;
-                imageButton1.setVisibility(View.VISIBLE);
-
-                imageButton2.setImageResource(arr[indexOfNextCard].getImageResource());
-                imageButton2.setTag(arr[indexOfNextCard]);
-                onTheHand[1] = indexOfNextCard;
-                indexOfNextCard++;
-                imageButton2.setVisibility(View.VISIBLE);
-
-                imageButton3.setImageResource(arr[indexOfNextCard].getImageResource());
-                imageButton3.setTag(arr[indexOfNextCard]);
-                onTheHand[2] = indexOfNextCard;
-                indexOfNextCard++;
-                imageButton3.setVisibility(View.VISIBLE);
+                return;
             }
+
+            // אם יש מספיק קלפים, מלא את היד
+            Log.d("Game", "Refilling hand with 3 cards...");
+
+            imageButton1.setImageResource(arr[indexOfNextCard].getImageResource());
+            imageButton1.setTag(arr[indexOfNextCard]);
+            onTheHand[0] = indexOfNextCard;
+            indexOfNextCard++;
+            imageButton1.setVisibility(View.VISIBLE);
+
+            imageButton2.setImageResource(arr[indexOfNextCard].getImageResource());
+            imageButton2.setTag(arr[indexOfNextCard]);
+            onTheHand[1] = indexOfNextCard;
+            indexOfNextCard++;
+            imageButton2.setVisibility(View.VISIBLE);
+
+            imageButton3.setImageResource(arr[indexOfNextCard].getImageResource());
+            imageButton3.setTag(arr[indexOfNextCard]);
+            onTheHand[2] = indexOfNextCard;
+            indexOfNextCard++;
+            imageButton3.setVisibility(View.VISIBLE);
+
+            // עדכון ה-Firebase
+            updateBoardInFirebase();
+
+        } else {
+            // אם לא כל הקלפים ביד נגמרו, בדוק אם צריך למלא קלפים בודדים
+            refillIndividualCards();
+        }
+    }
+
+    private void refillIndividualCards() {
+        int remainingCards = arr.length - indexOfNextCard;
+
+        // מלא רק קלפים שנגמרו, אבל רק אם יש מספיק קלפים בקופה
+        if (imageButton1.getVisibility() == View.INVISIBLE && remainingCards > 0) {
+            imageButton1.setImageResource(arr[indexOfNextCard].getImageResource());
+            imageButton1.setTag(arr[indexOfNextCard]);
+            onTheHand[0] = indexOfNextCard;
+            indexOfNextCard++;
+            imageButton1.setVisibility(View.VISIBLE);
+            remainingCards--;
+        }
+
+        if (imageButton2.getVisibility() == View.INVISIBLE && remainingCards > 0) {
+            imageButton2.setImageResource(arr[indexOfNextCard].getImageResource());
+            imageButton2.setTag(arr[indexOfNextCard]);
+            onTheHand[1] = indexOfNextCard;
+            indexOfNextCard++;
+            imageButton2.setVisibility(View.VISIBLE);
+            remainingCards--;
+        }
+
+        if (imageButton3.getVisibility() == View.INVISIBLE && remainingCards > 0) {
+            imageButton3.setImageResource(arr[indexOfNextCard].getImageResource());
+            imageButton3.setTag(arr[indexOfNextCard]);
+            onTheHand[2] = indexOfNextCard;
+            indexOfNextCard++;
+            imageButton3.setVisibility(View.VISIBLE);
+            remainingCards--;
+        }
+
+        // אם אחרי המילוי עדיין יש קלפים ריקים ביד, זה אומר שהקלפים נגמרו
+        boolean stillHasEmptyCards = imageButton1.getVisibility() == View.INVISIBLE ||
+                imageButton2.getVisibility() == View.INVISIBLE ||
+                imageButton3.getVisibility() == View.INVISIBLE;
+
+        if (stillHasEmptyCards && indexOfNextCard >= arr.length) {
+            Log.d("Game", "Deck is empty and hand is not full. Ending round...");
+            calculateRoundResults();
+        } else if (remainingCards > 0) {
+            // עדכון ה-Firebase רק אם עדכנו משהו
+            updateBoardInFirebase();
         }
     }
 
 
+
     private void calculateRoundResults() {
-        // חישוב הנקודות (הקוד נשאר אותו דבר)
+        SharedPreferences prefs = getSharedPreferences("MyGamePrefs", MODE_PRIVATE);
+        String currentPlayerId = prefs.getString("playerId", "UNKNOWN");
+        Log.d("Game", "=== ROUND END ===");
+        Log.d("Game", "Current player ID: " + currentPlayerId);
+        Log.d("Game", "Index: " + indexOfNextCard + ", Array length: " + arr.length);
+
+        // רק שחקן 1 מחשב ושומר את התוצאות
+        if (!currentPlayerId.equals("player1")) {
+            Log.d("Game", "Player2 - waiting for results from Firebase");
+            return;
+        }
+
+        // הוספת קלפים נותרים על הלוח לשחקן האחרון שלקח קלף
+        if (lastPlayerToTakeCard != null) {
+            Log.d("Game", "Adding remaining board cards to: " + lastPlayerToTakeCard);
+            for (int i = 0; i < OnTheBord.length; i++) {
+                if (OnTheBord[i] != null) {
+                    Log.d("Game", "Adding card to " + lastPlayerToTakeCard + ": " + OnTheBord[i].getShape() + OnTheBord[i].getNumber());
+                    if (lastPlayerToTakeCard.equals("player1")) {
+                        player1RoundCards.add(OnTheBord[i]);
+                    } else {
+                        player2RoundCards.add(OnTheBord[i]);
+                    }
+                }
+            }
+        }
+
+        // חישוב הנקודות
         int player1TotalCards = player1RoundCards.size();
         int player1Diamonds = 0;
         int player1Sevens = 0;
@@ -878,6 +1201,7 @@ public class Game extends AppCompatActivity {
         int player1RoundScore = 0;
         int player2RoundScore = 0;
 
+        // חישוב נקודות לפי הכללים
         if (player1TotalCards > player2TotalCards) {
             player1RoundScore++;
         } else if (player2TotalCards > player1TotalCards) {
@@ -896,73 +1220,232 @@ public class Game extends AppCompatActivity {
             player2RoundScore++;
         }
 
-        player1TotalScore += player1RoundScore;
-        player2TotalScore += player2RoundScore;
+        Log.d("Game", "Player1: " + player1TotalCards + " cards, " + player1Diamonds + " diamonds, " + player1Sevens + " sevens");
+        Log.d("Game", "Player2: " + player2TotalCards + " cards, " + player2Diamonds + " diamonds, " + player2Sevens + " sevens");
+        Log.d("Game", "Scores - Player1: " + player1RoundScore + ", Player2: " + player2RoundScore);
 
-        TextView textView5 = findViewById(R.id.textView5);
-        textView5.setText("Player 1: " + player1TotalScore + " | Player 2: " + player2TotalScore);
+        // שמירת התוצאות ב-Firebase
+        DatabaseReference scoresRef = gameRef.child("roundScores");
+        scoresRef.child("roundNumber").setValue(currentRound);
+        scoresRef.child("player1RoundScore").setValue(player1RoundScore);
+        scoresRef.child("player2RoundScore").setValue(player2RoundScore);
 
-        // התחלת סיבוב חדש
-        startNewRound();
+        // ניקוי מיידי של כל הקלפים לפני ההמתנה
+        clearAllCardsImmediately();
+
+        // עיכוב של 5 שניות לפני התחלת סיבוב חדש
+        new android.os.Handler().postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                startNewRound();
+            }
+        }, 5000);
+    }
+
+    private void clearAllCardsImmediately() {
+        // ניקוי קלפי היד מיד
+        clearHandCards();
+
+        // ניקוי קלפי הלוח מיד
+        clearBoardCompletely();
+
+        Log.d("Game", "All cards cleared immediately before new round delay");
     }
 
     private void startNewRound() {
-        currentRound++;
+        SharedPreferences prefs = getSharedPreferences("MyGamePrefs", MODE_PRIVATE);
+        String playerId = prefs.getString("playerId", null);
 
-        // הודעה על סיבוב חדש
-        Toast.makeText(this, "סיבוב " + currentRound, Toast.LENGTH_SHORT).show();
+        Log.d("Game", "=== NEW ROUND LOGIC ===");
+        Log.d("Game", "Player trying to start round: " + playerId);
+        Log.d("Game", "Current round before increment: " + currentRound);
+
+        // רק שחקן 1 יוצר סיבוב חדש
+        if (playerId.equals("player1")) {
+            currentRound++;
+            Log.d("Game", "Starting round: " + currentRound);
+
+            // איפוס נתונים לסיבוב החדש
+            resetRoundData();
+
+            // יצירת קופה חדשה
+            refillDeck();
+
+            // ערבוב הקלפים מחדש
+            shuffleDeck();
+
+            // איפוס מונה הקלפים
+            indexOfNextCard = 0;
+
+            // ניקוי הלוח הישן (מסיר קלפים מהמסך וגם מהמערך)
+            clearBoardCompletely();
+
+            // יצירת לוח חדש
+            createNewBoard();
+
+            // הגדרת קלפי היד החדשים
+            setupHandCards();
+
+            // שמירת הלוח החדש ל-Firebase
+            saveBoardToFirebase();
+
+            // עדכון מספר הסיבוב ב-Firebase
+            gameRef.child("currentRound").setValue(currentRound);
+
+            // שחקן 1 מתחיל את הסיבוב החדש
+            gameRef.child("turn").setValue("player1");
+
+            Log.d("Game", "New round " + currentRound + " started by player1");
+        } else {
+            // שחקן 2 מחכה לעדכון מ-Firebase
+            Log.d("Game", "Player2 waiting for new round from Firebase");
+        }
+    }
+
+    private void resetRoundData() {
+        // איפוס השחקן האחרון שלקח קלף
+        lastPlayerToTakeCard = null;
 
         // איפוס הקלפים שנאספו
         player1RoundCards.clear();
         player2RoundCards.clear();
 
-        // ערבוב הקלפים מחדש
+        // איפוס משתני בחירה
+        handClickedButton = null;
+        secondClickedButton = null;
+        thirdClickedButton = null;
+
+        // איפוס משתני אנימציה
+        pendingAnimations = 0;
+        shouldRefillHand = false;
+
+        // ניקוי הקלפים ביד מיד ללא אנימציה
+        clearHandCards();
+
+        Log.d("Game", "Round data reset completed");
+    }
+
+    private void clearHandCards() {
+        // הסתרת קלפי היד מיד ללא אנימציה
+        imageButton1.setVisibility(View.INVISIBLE);
+        imageButton1.setTag(null);
+
+        imageButton2.setVisibility(View.INVISIBLE);
+        imageButton2.setTag(null);
+
+        imageButton3.setVisibility(View.INVISIBLE);
+        imageButton3.setTag(null);
+
+        // איפוס מערך הקלפים ביד
+        onTheHand[0] = -1;
+        onTheHand[1] = -1;
+        onTheHand[2] = -1;
+
+        Log.d("Game", "Hand cards cleared immediately");
+    }
+
+
+    private void refillDeck() {
+        // מילוי הקופה מחדש עם כל הקלפים
+        arr = new Card[]{
+                card3H, card4H, card5H, card6H, card7H, card8H, card9H, card10H, card_a_D,
+                card2D, card3D, card4D, card5D, card6D, card7D, card8D, card9D, card10D,
+                card_a_S, card2S, card3S, card4S, card5S, card6S, card7S, card8S, card9S, card10S,
+                card_a_C, card2C, card3C, card4C, card5C, card6C, card7C, card8C, card9C, card10C
+        };
+
+        Log.d("Game", "Deck refilled with " + arr.length + " cards");
+    }
+
+    private void shuffleDeck() {
+        // ערבוב הקלפים
         for (int i = arr.length - 1; i > 0; i--) {
             int index = rnd.nextInt(i + 1);
             Card temp = arr[index];
             arr[index] = arr[i];
             arr[i] = temp;
         }
-
-        // איפוס מונה הקלפים
-        indexOfNextCard = 0;
-
-        // ניקוי הלוח
-        clearBoard();
-
-        // יצירת לוח חדש
-        createBoard();
-
-        // עדכון Firebase
-        SharedPreferences prefs = getSharedPreferences("MyGamePrefs", MODE_PRIVATE);
-        String playerId = prefs.getString("playerId", null);
-
-        if (playerId.equals("player1")) {
-            // רק שחקן 1 עושה את העדכון
-            saveBoardToFirebase();
-        }
+        Log.d("Game", "Deck shuffled");
     }
 
-    private void clearBoard() {
-        // ניקוי המערך
+    private void clearBoardCompletely() {
+        // ניקוי המערך של הלוח
         for (int i = 0; i < OnTheBord.length; i++) {
             OnTheBord[i] = null;
         }
 
-        // הסתרת כל הכפתורים
+        // הסתרת כל כפתורי הלוח במסך מיד ללא אנימציה
         imageButton4.setVisibility(View.INVISIBLE);
-        imageButton5.setVisibility(View.INVISIBLE);
-        imageButton6.setVisibility(View.INVISIBLE);
-        imageButton7.setVisibility(View.INVISIBLE);
-        imageButton8.setVisibility(View.INVISIBLE);
-        imageButton9.setVisibility(View.INVISIBLE);
-        imageButton10.setVisibility(View.INVISIBLE);
-        imageButton11.setVisibility(View.INVISIBLE);
+        imageButton4.setTag(null);
 
-        imageButton1.setVisibility(View.INVISIBLE);
-        imageButton2.setVisibility(View.INVISIBLE);
-        imageButton3.setVisibility(View.INVISIBLE);
+        imageButton5.setVisibility(View.INVISIBLE);
+        imageButton5.setTag(null);
+
+        imageButton6.setVisibility(View.INVISIBLE);
+        imageButton6.setTag(null);
+
+        imageButton7.setVisibility(View.INVISIBLE);
+        imageButton7.setTag(null);
+
+        imageButton8.setVisibility(View.INVISIBLE);
+        imageButton8.setTag(null);
+
+        imageButton9.setVisibility(View.INVISIBLE);
+        imageButton9.setTag(null);
+
+        imageButton10.setVisibility(View.INVISIBLE);
+        imageButton10.setTag(null);
+
+        imageButton11.setVisibility(View.INVISIBLE);
+        imageButton11.setTag(null);
+
+        Log.d("Game", "Board cleared completely and immediately");
     }
+
+
+    private void createNewBoard() {
+        // הצבת 4 קלפים חדשים על הלוח
+        if (indexOfNextCard + 3 < arr.length) {
+            // קלף ראשון
+            imageButton4.setImageResource(arr[indexOfNextCard].getImageResource());
+            imageButton4.setTag(arr[indexOfNextCard]);
+            imageButton4.setVisibility(View.VISIBLE);
+            OnTheBord[0] = arr[indexOfNextCard];
+            arr[indexOfNextCard].SetIndex(0);
+            indexOfNextCard++;
+
+            // קלף שני
+            imageButton5.setImageResource(arr[indexOfNextCard].getImageResource());
+            imageButton5.setTag(arr[indexOfNextCard]);
+            imageButton5.setVisibility(View.VISIBLE);
+            OnTheBord[1] = arr[indexOfNextCard];
+            arr[indexOfNextCard].SetIndex(1);
+            indexOfNextCard++;
+
+            // קלף שלישי
+            imageButton6.setImageResource(arr[indexOfNextCard].getImageResource());
+            imageButton6.setTag(arr[indexOfNextCard]);
+            imageButton6.setVisibility(View.VISIBLE);
+            OnTheBord[2] = arr[indexOfNextCard];
+            arr[indexOfNextCard].SetIndex(2);
+            indexOfNextCard++;
+
+            // קלף רביעי
+            imageButton7.setImageResource(arr[indexOfNextCard].getImageResource());
+            imageButton7.setTag(arr[indexOfNextCard]);
+            imageButton7.setVisibility(View.VISIBLE);
+            OnTheBord[3] = arr[indexOfNextCard];
+            arr[indexOfNextCard].SetIndex(3);
+            indexOfNextCard++;
+
+            Log.d("Game", "New board created with 4 cards, next index: " + indexOfNextCard);
+        } else {
+            Log.e("Game", "Not enough cards to create new board!");
+        }
+    }
+
+
+
 
 
     // פונקציה שמחזירה את הכפתור המתאים בלוח לפי אינדקס
@@ -979,11 +1462,5 @@ public class Game extends AppCompatActivity {
             default: return null;
         }
     }
-
-
-
-
-
-
 
 }

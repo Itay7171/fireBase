@@ -8,20 +8,6 @@
     android:background="@drawable/background_green"
     tools:context=".First">
 
-    <Button
-        android:id="@+id/button8"
-        android:layout_width="92dp"
-        android:layout_height="81dp"
-        android:layout_marginBottom="16dp"
-        android:onClick="moveToGame"
-        android:text="J"
-        android:textColorLink="#020202"
-        android:textSize="22sp"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.116"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/button" />
 
     <Button
         android:id="@+id/button5"
